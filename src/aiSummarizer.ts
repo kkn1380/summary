@@ -14,7 +14,7 @@ async function summarizeWithGemini(
     language: string = 'ko'
 ): Promise<string> {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'models/gemini-2.5-flash' });
 
     const prompt = language === 'ko'
         ? `다음은 YouTube 동영상의 자막입니다. 이 내용을 한국어로 간결하게 요약해주세요. 주요 내용과 핵심 포인트를 3-5문장으로 정리해주세요:\n\n${subtitleText}`
