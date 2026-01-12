@@ -20,7 +20,8 @@ async function processVideo(video: VideoInfo): Promise<void> {
         // 1. 자막 추출
         console.log('   🔍 자막 추출 중...');
         const lang = process.env.SUBTITLE_LANGUAGE || 'ko';
-        const subtitles = await extractSubtitles(video.videoId, { lang });
+        const contentInfo = await extractSubtitles(video.videoId, { lang });
+        const subtitles = contentInfo.subtitle;
 
         if (subtitles.length === 0) {
             throw new Error('자막을 찾을 수 없습니다');
@@ -35,15 +36,20 @@ async function processVideo(video: VideoInfo): Promise<void> {
         console.log(`   ✅ 요약 완료`);
 
         // 3. Google Sheets에 추가
-        console.log('   📊 구글 시트 업데이트 중...');
-        await appendToSheet({
-            title: video.title,
-            channelName: video.channelName,
-            publishedAt: video.publishedAt.toISOString(),
-            url: video.url,
-            summary,
-            processedAt: new Date().toISOString(),
-        });
+        if (summary.length > 0) {
+            console.log('   📊 구글 시트 업데이트 중...');
+            await appendToSheet({
+                title: video.title,
+                channelName: video.channelName,
+                publishedAt: video.publishedAt.toISOString(),
+                url: video.url,
+                summary,
+                processedAt: new Date().toISOString(),
+            });
+        } else {
+            console.log(`summary(${summary})`);
+            console.log(` 주식 정보가 아님. ${contentInfo.details.title}`)
+        }
 
         // 4. 처리 완료 기록
         await markVideoAsProcessed(video.videoId, 'success');

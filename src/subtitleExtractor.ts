@@ -1,4 +1,4 @@
-import { getSubtitles } from 'youtube-caption-extractor';
+import {getSubtitles, getVideoDetails, VideoDetails} from 'youtube-caption-extractor';
 
 export interface SubtitleSegment {
     text: string;
@@ -37,26 +37,38 @@ export function extractVideoId(urlOrId: string): string {
     throw new Error(`유효하지 않은 YouTube URL 또는 비디오 ID입니다: ${urlOrId}`);
 }
 
+export interface ContentInfo {
+    details: VideoDetails,
+    subtitle: SubtitleSegment[],
+}
 /**
  * YouTube 비디오의 자막을 추출합니다
  */
 export async function extractSubtitles(
     urlOrId: string,
     options: ExtractOptions = {}
-): Promise<SubtitleSegment[]> {
+): Promise<ContentInfo> {
     const videoId = extractVideoId(urlOrId);
     const lang = options.lang || 'ko'; // 기본값: 한국어
 
     try {
+        const videoDetails = await getVideoDetails({ videoID: videoId, lang });
         const subtitles = await getSubtitles({ videoID: videoId, lang });
-        return subtitles;
+        return {
+            details: videoDetails,
+            subtitle: subtitles,
+        };
     } catch (error) {
         // 한국어 자막이 없으면 영어로 시도
         if (lang === 'ko') {
             console.warn('한국어 자막을 찾을 수 없습니다. 영어 자막을 시도합니다...');
             try {
+                const videoDetails = await getVideoDetails({ videoID: videoId, lang });
                 const subtitles = await getSubtitles({ videoID: videoId, lang: 'en' });
-                return subtitles;
+                return {
+                    details: videoDetails,
+                    subtitle: subtitles,
+                };
             } catch (enError) {
                 throw new Error(`자막을 찾을 수 없습니다. 비디오 ID: ${videoId}`);
             }
