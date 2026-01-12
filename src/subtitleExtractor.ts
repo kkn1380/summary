@@ -83,16 +83,18 @@ export async function extractSubtitles(
             };
         } catch (error) {
             lastError = error;
-            tried.push(`${lang}(error)`);
+            tried.push(`${lang}(error:${error instanceof Error ? error.message : String(error)})`);
             continue;
         }
     }
 
     const reason = tried.length > 0 ? tried.join(', ') : 'no attempts';
+    const lastErrMsg =
+        lastError instanceof Error
+            ? `${lastError.name}: ${lastError.message}`
+            : String(lastError);
     throw new Error(
-        `자막을 찾을 수 없습니다. 비디오 ID: ${videoId}, 시도: ${reason}, 마지막 오류: ${String(
-            lastError
-        )}`
+        `자막을 찾을 수 없습니다. 비디오 ID: ${videoId}, 시도: ${reason}, 마지막 오류: ${lastErrMsg}`
     );
 }
 

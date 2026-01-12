@@ -59,6 +59,9 @@ async function processVideo(video: VideoInfo): Promise<void> {
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.error(`   ❌ 오류 발생: ${errorMessage}`);
+        if (error instanceof Error && error.stack) {
+            console.error(error.stack);
+        }
         await markVideoAsProcessed(video.videoId, 'failed', errorMessage);
         throw error;
     }
