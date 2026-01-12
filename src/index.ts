@@ -24,7 +24,8 @@ async function main() {
     try {
         console.log('자막 추출 중...\n');
 
-        const subtitles = await extractSubtitles(urlOrId, { lang });
+        const content = await extractSubtitles(urlOrId, { lang });
+        const subtitles = content.subtitle;
 
         console.log(`✅ 자막 추출 완료! (총 ${subtitles.length}개 세그먼트)\n`);
         console.log('━'.repeat(60));
