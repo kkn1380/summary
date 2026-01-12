@@ -19,6 +19,7 @@ async function processVideo(video: VideoInfo): Promise<void> {
     try {
         // 1. 자막 추출
         console.log('   🔍 자막 추출 중...');
+        console.log(`   🔤 시도 언어: ${process.env.SUBTITLE_LANGUAGE || 'ko'} (자동자막 포함 en/a.en fallback)`);
         const lang = process.env.SUBTITLE_LANGUAGE || 'ko';
         const contentInfo = await extractSubtitles(video.videoId, { lang });
         const subtitles = contentInfo.subtitle;

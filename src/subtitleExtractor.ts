@@ -49,32 +49,51 @@ export async function extractSubtitles(
     options: ExtractOptions = {}
 ): Promise<ContentInfo> {
     const videoId = extractVideoId(urlOrId);
-    const lang = options.lang || 'ko'; // 기본값: 한국어
+    const baseLang = options.lang || 'ko'; // 기본값: 한국어
 
-    try {
-        const videoDetails = await getVideoDetails({ videoID: videoId, lang });
-        const subtitles = await getSubtitles({ videoID: videoId, lang });
-        return {
-            details: videoDetails,
-            subtitle: subtitles,
-        };
-    } catch (error) {
-        // 한국어 자막이 없으면 영어로 시도
-        if (lang === 'ko') {
-            console.warn('한국어 자막을 찾을 수 없습니다. 영어 자막을 시도합니다...');
-            try {
-                const videoDetails = await getVideoDetails({ videoID: videoId, lang });
-                const subtitles = await getSubtitles({ videoID: videoId, lang: 'en' });
-                return {
-                    details: videoDetails,
-                    subtitle: subtitles,
-                };
-            } catch (enError) {
-                throw new Error(`자막을 찾을 수 없습니다. 비디오 ID: ${videoId}`);
+    // 언어 시도 순서: 지정 언어 -> 자동자막(a.) 변형 -> en -> 자동 en
+    const candidateLangs = Array.from(
+        new Set([
+            baseLang,
+            baseLang.startsWith('a.') ? baseLang : `a.${baseLang}`,
+            'en',
+            'a.en',
+        ])
+    );
+
+    const tried: string[] = [];
+    let lastError: unknown = null;
+    let videoDetails: VideoDetails | undefined;
+
+    for (const lang of candidateLangs) {
+        try {
+            const details = await getVideoDetails({ videoID: videoId, lang });
+            const subtitles = await getSubtitles({ videoID: videoId, lang });
+
+            // 비어 있는 자막은 실패로 간주
+            if (!subtitles || subtitles.length === 0) {
+                tried.push(`${lang}(empty)`);
+                if (!videoDetails) videoDetails = details;
+                continue;
             }
+
+            return {
+                details: details || videoDetails!,
+                subtitle: subtitles,
+            };
+        } catch (error) {
+            lastError = error;
+            tried.push(`${lang}(error)`);
+            continue;
         }
-        throw error;
     }
+
+    const reason = tried.length > 0 ? tried.join(', ') : 'no attempts';
+    throw new Error(
+        `자막을 찾을 수 없습니다. 비디오 ID: ${videoId}, 시도: ${reason}, 마지막 오류: ${String(
+            lastError
+        )}`
+    );
 }
 
 /**
