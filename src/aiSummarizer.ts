@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import OpenAI from 'openai';
 
 export interface SummaryOptions {
     provider?: 'gemini' | 'openai';
@@ -14,10 +15,10 @@ async function summarizeWithGemini(
     language: string = 'ko'
 ): Promise<string> {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'models/gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'models/gemini-2.5-flash' })
 
     const prompt = language === 'ko'
-        ? `다음은 YouTube 동영상의 자막입니다. 이 내용을 한국어로 간결하게 요약해주세요. 주요 내용과 핵심 포인트를 3-5문장으로 정리해주세요:\n\n${subtitleText}`
+        ? `다음은 YouTube 동영상의 자막입니다. 주식 관련한 내용이라면 주요 내용과 핵심 포인트를 읽었을 때 5분 내외 길이로 정리해주세요. 아니라면 빈 응답을 주세요.:\n\n${subtitleText}`
         : `This is a YouTube video transcript. Please summarize the main content and key points in 3-5 sentences:\n\n${subtitleText}`;
 
     try {
@@ -38,17 +39,16 @@ async function summarizeWithOpenAI(
     apiKey: string,
     language: string = 'ko'
 ): Promise<string> {
+    const openai = new OpenAI({
+        apiKey: apiKey,
+    });
+
     const systemPrompt = language === 'ko'
         ? '당신은 YouTube 동영상 내용을 요약하는 AI 어시스턴트입니다. 주요 내용과 핵심 포인트를 3-5문장으로 간결하게 요약해주세요.'
         : 'You are an AI assistant that summarizes YouTube video content. Provide a concise summary of the main content and key points in 3-5 sentences.';
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
+    try {
+        const completion = await openai.chat.completions.create({
             model: 'gpt-3.5-turbo',
             messages: [
                 { role: 'system', content: systemPrompt },
@@ -56,15 +56,13 @@ async function summarizeWithOpenAI(
             ],
             temperature: 0.7,
             max_tokens: 500,
-        }),
-    });
+        });
 
-    if (!response.ok) {
-        throw new Error('OpenAI API 요청에 실패했습니다');
+        return completion.choices[0].message.content || '';
+    } catch (error) {
+        console.error('OpenAI API error:', error);
+        throw new Error('OpenAI API를 통한 요약 생성에 실패했습니다');
     }
-
-    const data: any = await response.json();
-    return data.choices[0].message.content;
 }
 
 /**
