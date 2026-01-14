@@ -18,7 +18,7 @@ async function summarizeWithGemini(
     const model = genAI.getGenerativeModel({ model: 'models/gemini-2.5-flash' })
 
     const prompt = language === 'ko'
-        ? `다음은 YouTube 동영상의 자막입니다. 주식 관련한 내용이라면 주요 내용과 핵심 포인트를 읽었을 때 5분 내외 길이로 정리해주세요. 아니라면 빈 응답을 주세요.:\n\n${subtitleText}`
+        ? `다음은 YouTube 동영상의 자막입니다. 주요 내용과 핵심 포인트를 3-5문장으로 간결하게 요약해주세요:\n\n${subtitleText}`
         : `This is a YouTube video transcript. Please summarize the main content and key points in 3-5 sentences:\n\n${subtitleText}`;
 
     try {
