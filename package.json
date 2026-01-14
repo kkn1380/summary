@@ -11,9 +11,9 @@
         "monitor": "tsx src/monitor.ts",
         "monitor:watch": "tsx src/monitor.ts --watch",
     "setup": "tsx src/setup.ts",
-    "run:fetch": "tsx src/runOnce.ts --fetch",
-    "run:summarize": "tsx src/runOnce.ts --summarize",
-    "run:sheet": "tsx src/runOnce.ts --sheet"
+    "run:fetchScript": "tsx src/runOnce.ts --fetchScript",
+    "run:fetchAndSummarize": "tsx src/runOnce.ts --summarize",
+    "run:fetchSummarizeSheet": "tsx src/runOnce.ts --sheet"
     },
     "keywords": [
         "youtube",

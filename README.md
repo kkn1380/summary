@@ -212,6 +212,18 @@ npm run dev
 npm start -- jNQXAC9IVRw en
 ```
 
+### 예제 1.5: 단계별 실행 (자막 → 요약 → 시트)
+```bash
+# 1) 자막만 받기
+npm run fetchScript -- https://www.youtube.com/watch?v=dQw4w9WgXcQ ko
+
+# 2) 자막 + 요약
+npm run fetchAndSummarize -- https://www.youtube.com/watch?v=dQw4w9WgXcQ ko
+
+# 3) 자막 + 요약 + 시트 기록
+npm run fetchSummarizeSheet -- https://www.youtube.com/watch?v=dQw4w9WgXcQ ko
+```
+
 **출력:**
 ```
 자막 추출 중...

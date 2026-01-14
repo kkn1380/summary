@@ -18,25 +18,25 @@ function parseArgs(): Args {
     const args = process.argv.slice(2).filter(Boolean);
     if (args.length === 0) {
         console.log('사용법:');
-        console.log('  npm run fetch -- <YouTube URL/ID> [lang]');
-        console.log('  npm run summarize -- <YouTube URL/ID> [lang]');
-        console.log('  npm run sheet -- <YouTube URL/ID> [lang]');
+        console.log('  npm run fetchScript -- <YouTube URL/ID> [lang]');
+        console.log('  npm run fetchAndSummarize -- <YouTube URL/ID> [lang]');
+        console.log('  npm run fetchSummarizeSheet -- <YouTube URL/ID> [lang]');
         console.log('');
         console.log('예시:');
-        console.log('  npm run fetch -- https://youtu.be/dQw4w9WgXcQ');
-        console.log('  npm run summarize -- dQw4w9WgXcQ ko');
-        console.log('  npm run sheet -- https://www.youtube.com/watch?v=dQw4w9WgXcQ en');
+        console.log('  npm run fetchScript -- https://youtu.be/dQw4w9WgXcQ');
+        console.log('  npm run fetchAndSummarize -- dQw4w9WgXcQ ko');
+        console.log('  npm run fetchSummarizeSheet -- https://www.youtube.com/watch?v=dQw4w9WgXcQ en');
         process.exit(1);
     }
 
     let mode: Mode = 'fetch';
-    if (args[0] === '--fetch') {
+    if (args[0] === '--fetch' || args[0] === '--fetchScript') {
         mode = 'fetch';
         args.shift();
-    } else if (args[0] === '--summarize') {
+    } else if (args[0] === '--summarize' || args[0] === '--fetchAndSummarize') {
         mode = 'summarize';
         args.shift();
-    } else if (args[0] === '--sheet') {
+    } else if (args[0] === '--sheet' || args[0] === '--fetchSummarizeSheet') {
         mode = 'sheet';
         args.shift();
     }
