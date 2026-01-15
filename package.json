@@ -29,6 +29,7 @@
     "license": "MIT",
     "dependencies": {
         "@google/generative-ai": "^0.24.1",
+        "@distube/youtube-transcript": "^1.0.5",
         "dotenv": "^16.4.5",
         "googleapis": "^144.0.0",
         "openai": "^6.15.0",

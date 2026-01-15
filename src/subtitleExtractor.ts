@@ -1,4 +1,5 @@
-import {getSubtitles, getVideoDetails, VideoDetails} from 'youtube-caption-extractor';
+import { getTranscript } from '@distube/youtube-transcript';
+import { getSubtitles, getVideoDetails, VideoDetails } from 'youtube-caption-extractor';
 
 export interface SubtitleSegment {
     text: string;
@@ -88,6 +89,32 @@ export async function extractSubtitles(
         } catch (error) {
             lastError = error;
             tried.push(`${lang}(error:${error instanceof Error ? error.message : String(error)})`);
+            continue;
+        }
+    }
+
+    // Fallback: youtube-transcript (비공식 API를 사용해 더 관대한 자막 추출)
+    for (const lang of candidateLangs) {
+        try {
+            const transcript = await getTranscript(videoId, { lang });
+            if (transcript && transcript.length > 0) {
+                if (!videoDetails) {
+                    videoDetails = await getVideoDetails({ videoID: videoId, lang });
+                }
+                return {
+                    details: videoDetails!,
+                    subtitle: transcript.map(item => ({
+                        text: item.text,
+                        start: String(item.offset / 1000),
+                        dur: String(item.duration / 1000),
+                    })),
+                };
+            } else {
+                tried.push(`fallback:${lang}(empty)`);
+            }
+        } catch (error) {
+            lastError = error;
+            tried.push(`fallback:${lang}(error:${error instanceof Error ? error.message : String(error)})`);
             continue;
         }
     }
