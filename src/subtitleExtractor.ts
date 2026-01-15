@@ -1,4 +1,4 @@
-import { getTranscript } from '@distube/youtube-transcript';
+import { YoutubeTranscript } from 'youtube-transcript';
 import { getSubtitles, getVideoDetails, VideoDetails } from 'youtube-caption-extractor';
 
 export interface SubtitleSegment {
@@ -96,7 +96,7 @@ export async function extractSubtitles(
     // Fallback: youtube-transcript (비공식 API를 사용해 더 관대한 자막 추출)
     for (const lang of candidateLangs) {
         try {
-            const transcript = await getTranscript(videoId, { lang });
+            const transcript = await YoutubeTranscript.fetchTranscript(videoId, { lang });
             if (transcript && transcript.length > 0) {
                 if (!videoDetails) {
                     videoDetails = await getVideoDetails({ videoID: videoId, lang });
