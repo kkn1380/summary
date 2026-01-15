@@ -15,6 +15,7 @@ async function processVideo(video: VideoInfo): Promise<void> {
     console.log(`\n📹 처리 중: ${video.title}`);
     console.log(`   채널: ${video.channelName}`);
     console.log(`   게시일: ${video.publishedAt.toLocaleDateString('ko-KR')}`);
+    console.log(`   URL: ${video.url}`);
 
     try {
         // 1. 자막 추출
