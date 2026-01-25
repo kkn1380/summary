@@ -1,5 +1,7 @@
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
+import fs from 'fs/promises';
+import path from 'path';
 import { getMultipleChannelsVideos, VideoInfo } from './channelMonitor.js';
 import { extractSubtitles, formatSubtitlesPlain } from './subtitleExtractor.js';
 import { summarizeSubtitles } from './aiSummarizer.js';
@@ -11,6 +13,15 @@ import {
     writeSummariesToGcs,
     SummaryRecord,
 } from './sitePublisher.js';
+
+async function fileExists(p: string) {
+    try {
+        await fs.access(p);
+        return true;
+    } catch {
+        return false;
+    }
+}
 
 // Load environment variables
 dotenv.config();
@@ -24,25 +35,52 @@ async function processVideo(video: VideoInfo): Promise<string | null> {
     console.log(`   게시일: ${video.publishedAt.toLocaleDateString('ko-KR')}`);
     console.log(`   URL: ${video.url}`);
 
-    try {
-        // 1. 자막 추출
-        console.log('   🔍 자막 추출 중...');
-        console.log(`   🔤 시도 언어: ${process.env.SUBTITLE_LANGUAGE || 'ko'} (자동자막 포함 en/a.en fallback)`);
-        const lang = process.env.SUBTITLE_LANGUAGE || 'ko';
-        const contentInfo = await extractSubtitles(video.videoId, { lang });
-        const subtitles = contentInfo.subtitle;
+    const cacheDir = path.join(process.cwd(), 'data', 'cache');
+    const subtitleFile = path.join(cacheDir, `${video.videoId}.subtitle.txt`);
+    const summaryFile = path.join(cacheDir, `${video.videoId}.summary.txt`);
 
-        if (subtitles.length === 0) {
-            throw new Error('자막을 찾을 수 없습니다');
+    try {
+        // 0. 요약 캐시가 있으면 바로 시트 반영
+        let summary: string | null = null;
+        const hasSummary = await fileExists(summaryFile);
+        if (hasSummary) {
+            summary = await fs.readFile(summaryFile, 'utf-8');
+            console.log('   🗂  캐시된 요약 사용');
         }
 
-        const subtitleText = formatSubtitlesPlain(subtitles);
-        console.log(`   ✅ 자막 추출 완료: ${subtitles.length}개 세그먼트`);
+        // 1. 자막 캐시 확인 후 없으면 추출
+        let subtitleText: string | null = null;
+        if (!summary) {
+            const hasSubtitle = await fileExists(subtitleFile);
+            if (hasSubtitle) {
+                console.log('   🗂  캐시된 자막 사용');
+                subtitleText = await fs.readFile(subtitleFile, 'utf-8');
+            } else {
+                console.log('   🔍 자막 추출 중...');
+                console.log(`   🔤 시도 언어: ${process.env.SUBTITLE_LANGUAGE || 'ko'} (자동자막 포함 en/a.en fallback)`);
+                const lang = process.env.SUBTITLE_LANGUAGE || 'ko';
+                const contentInfo = await extractSubtitles(video.videoId, { lang });
+                const subtitles = contentInfo.subtitle;
 
-        // 2. AI 요약 생성
-        console.log('   🤖 AI 요약 생성 중...');
-        const summary = await summarizeSubtitles(subtitleText);
-        console.log(`   ✅ 요약 완료`);
+                if (subtitles.length === 0) {
+                    throw new Error('자막을 찾을 수 없습니다');
+                }
+
+                subtitleText = formatSubtitlesPlain(subtitles);
+                console.log(`   ✅ 자막 추출 완료: ${subtitles.length}개 세그먼트`);
+                await fs.mkdir(cacheDir, { recursive: true });
+                await fs.writeFile(subtitleFile, subtitleText, 'utf-8');
+            }
+        }
+
+        // 2. AI 요약 생성 (캐시 없을 때만)
+        if (!summary) {
+            console.log('   🤖 요약 생성 중...');
+            summary = await summarizeSubtitles(subtitleText || '');
+            console.log(`   ✅ 요약 완료`);
+            await fs.mkdir(cacheDir, { recursive: true });
+            await fs.writeFile(summaryFile, summary, 'utf-8');
+        }
 
         // 3. Google Sheets에 추가
         if (summary.length > 0) {
