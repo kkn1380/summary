@@ -1,0 +1,46 @@
+name: hourly-ingest
+
+on:
+  schedule:
+    # KST 09:00, 12:00, 15:00, 18:00, 21:00 (UTC+9) -> UTC 00:00, 03:00, 06:00, 09:00, 12:00
+    - cron: "0 0,3,6,9,12 * * *"
+  workflow_dispatch:
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Write Google service account key
+        env:
+          GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+        run: |
+          mkdir -p /tmp/keys
+          echo "$GOOGLE_SERVICE_ACCOUNT_KEY" > /tmp/keys/service-account.json
+
+      - name: Run monitor (hourly ingest)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          YOUTUBE_CHANNEL_IDS: ${{ secrets.YOUTUBE_CHANNEL_IDS }}
+          GOOGLE_SHEETS_SPREADSHEET_ID: ${{ secrets.GOOGLE_SHEETS_SPREADSHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_KEY_PATH: /tmp/keys/service-account.json
+          SUBTITLE_LANGUAGE: ${{ secrets.SUBTITLE_LANGUAGE }}
+          AI_PROVIDER: ${{ secrets.AI_PROVIDER }}
+          MAX_VIDEOS_PER_CHECK: ${{ secrets.MAX_VIDEOS_PER_CHECK }}
+        run: npm run monitor
+

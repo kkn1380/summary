@@ -1,0 +1,6 @@
+
+> youtube-subtitle-extractor@1.0.0 start
+> tsx src/index.ts https://www.youtube.com/watch?v=3KLy5ndOmDo
+
+자막 추출 중...
+
