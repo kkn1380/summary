@@ -44,7 +44,7 @@ async function summarizeWithOpenAI(
     });
 
     const systemPrompt = language === 'ko'
-        ? '당신은 YouTube 동영상 내용을 요약하는 AI 어시스턴트입니다. 주요 내용과 핵심 포인트를 3-5문장으로 간결하게 요약해주세요.'
+        ? '당신은 YouTube 동영상 내용을 요약하는 AI 어시스턴트입니다. 주요 내용과 핵심 포인트를 3-5문장으로 간결하게 요약해주세요. 내 말에 대한 답변은 필요 없으니 본문으로 바로 답해주세요'
         : 'You are an AI assistant that summarizes YouTube video content. Provide a concise summary of the main content and key points in 3-5 sentences.';
 
     try {

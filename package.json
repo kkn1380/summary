@@ -10,10 +10,11 @@
         "dev": "tsx watch src/index.ts",
         "monitor": "tsx src/monitor.ts",
         "monitor:watch": "tsx src/monitor.ts --watch",
-    "setup": "tsx src/setup.ts",
-    "fetchScript": "tsx src/runOnce.ts --fetchScript",
-    "fetchAndSummarize": "tsx src/runOnce.ts --summarize",
-    "fetchSummarizeSheet": "tsx src/runOnce.ts --sheet"
+        "serve": "tsx src/server.ts",
+        "setup": "tsx src/setup.ts",
+        "fetchScript": "tsx src/runOnce.ts --fetchScript",
+        "fetchAndSummarize": "tsx src/runOnce.ts --summarize",
+        "fetchSummarizeSheet": "tsx src/runOnce.ts --sheet"
     },
     "keywords": [
         "youtube",
@@ -33,6 +34,7 @@
         "googleapis": "^144.0.0",
         "openai": "^6.15.0",
         "rss-parser": "^3.13.0",
+        "@google-cloud/storage": "^7.12.1",
         "youtube-transcript": "^1.0.3",
         "youtube-caption-extractor": "^1.9.0"
     },

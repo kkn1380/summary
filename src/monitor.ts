@@ -1,9 +1,16 @@
 import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
 import { getMultipleChannelsVideos, VideoInfo } from './channelMonitor.js';
 import { extractSubtitles, formatSubtitlesPlain } from './subtitleExtractor.js';
 import { summarizeSubtitles } from './aiSummarizer.js';
 import { appendToSheet } from './sheetsManager.js';
 import { isVideoProcessed, markVideoAsProcessed } from './stateManager.js';
+import {
+    writeSummariesToLocal,
+    writeSummariesHtmlToLocal,
+    writeSummariesToGcs,
+    SummaryRecord,
+} from './sitePublisher.js';
 
 // Load environment variables
 dotenv.config();
@@ -11,7 +18,7 @@ dotenv.config();
 /**
  * 단일 동영상을 처리합니다
  */
-async function processVideo(video: VideoInfo): Promise<void> {
+async function processVideo(video: VideoInfo): Promise<string | null> {
     console.log(`\n📹 처리 중: ${video.title}`);
     console.log(`   채널: ${video.channelName}`);
     console.log(`   게시일: ${video.publishedAt.toLocaleDateString('ko-KR')}`);
@@ -56,7 +63,7 @@ async function processVideo(video: VideoInfo): Promise<void> {
         // 4. 처리 완료 기록
         await markVideoAsProcessed(video.videoId, 'success');
         console.log(`   ✅ 처리 완료!`);
-
+        return summary.length > 0 ? summary : null;
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.error(`   ❌ 오류 발생: ${errorMessage}`);
@@ -71,7 +78,7 @@ async function processVideo(video: VideoInfo): Promise<void> {
 /**
  * 메인 모니터링 함수
  */
-async function monitor(): Promise<void> {
+export async function monitor(): Promise<void> {
     console.log('🚀 YouTube 채널 모니터링 시작...\n');
 
     // 환경 변수 확인
@@ -116,9 +123,21 @@ async function monitor(): Promise<void> {
     let successCount = 0;
     let failCount = 0;
 
+    const summaryRecords: SummaryRecord[] = [];
+
     for (const video of unprocessedVideos) {
         try {
-            await processVideo(video);
+            const summary = await processVideo(video);
+            if (summary) {
+                summaryRecords.push({
+                    title: video.title,
+                    channelName: video.channelName,
+                    publishedAt: video.publishedAt.toISOString(),
+                    url: video.url,
+                    summary,
+                    processedAt: new Date().toISOString(),
+                });
+            }
             successCount++;
         } catch (error) {
             failCount++;
@@ -134,6 +153,30 @@ async function monitor(): Promise<void> {
     console.log(`❌ 실패: ${failCount}개`);
     console.log(`📝 총 처리: ${successCount + failCount}개`);
     console.log('='.repeat(60));
+
+    // 정적 페이지용 로컬 JSON 출력 (로컬 테스트 우선)
+    if (summaryRecords.length > 0) {
+        const outputDir = process.env.SUMMARY_OUTPUT_DIR;
+        const resolvedOutputDir = outputDir && outputDir.trim() ? outputDir : undefined;
+        const jsonPath = await writeSummariesToLocal(summaryRecords, {
+            outputDir: resolvedOutputDir,
+        });
+        const htmlPath = await writeSummariesHtmlToLocal(summaryRecords, {
+            outputDir: resolvedOutputDir,
+        });
+        console.log(`🗂  정적 데이터 저장 완료: ${jsonPath}`);
+        console.log(`📄 정적 페이지 저장 완료: ${htmlPath}`);
+
+        const gcsBucket = process.env.SUMMARY_BUCKET;
+        if (gcsBucket) {
+            const prefix = process.env.SUMMARY_PREFIX;
+            const { jsonUri, htmlUri } = await writeSummariesToGcs(summaryRecords, {
+                bucket: gcsBucket,
+                prefix,
+            });
+            console.log(`☁️  GCS 업로드 완료: ${jsonUri}, ${htmlUri}`);
+        }
+    }
 }
 
 /**
@@ -176,4 +219,7 @@ async function main() {
     }
 }
 
-main();
+const thisFile = fileURLToPath(import.meta.url);
+if (process.argv[1] === thisFile) {
+    main();
+}

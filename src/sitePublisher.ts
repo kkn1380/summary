@@ -1,0 +1,208 @@
+import fs from 'fs/promises';
+import path from 'path';
+import { Storage } from '@google-cloud/storage';
+
+export interface SummaryRecord {
+    title: string;
+    channelName: string;
+    publishedAt: string;
+    url: string;
+    summary: string;
+    processedAt: string;
+}
+
+/**
+ * 간단한 정적 페이지용 JSON을 로컬 디렉터리에 기록합니다.
+ * 나중에 GCS 업로드로 대체하기 쉬우도록 경로만 바꿔서 사용합니다.
+ */
+export async function writeSummariesToLocal(
+    records: SummaryRecord[],
+    options?: { outputDir?: string; fileName?: string }
+) {
+    const outputDir = options?.outputDir || path.join(process.cwd(), 'data', 'site');
+    const fileName = options?.fileName || 'latest.json';
+    await fs.mkdir(outputDir, { recursive: true });
+    const filePath = path.join(outputDir, fileName);
+    const payload = {
+        generatedAt: new Date().toISOString(),
+        count: records.length,
+        items: records,
+    };
+    await fs.writeFile(filePath, JSON.stringify(payload, null, 2), 'utf-8');
+    return filePath;
+}
+
+function renderHtml(records: SummaryRecord[]) {
+    const data = {
+        generatedAt: new Date().toISOString(),
+        items: records,
+    };
+    const dataScript = JSON.stringify(data);
+
+    return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>YouTube 요약 리스트</title>
+  <style>
+    body { font-family: 'Pretendard', system-ui, -apple-system, sans-serif; margin: 24px; background: #f7f7f9; }
+    h1 { margin-bottom: 8px; }
+    .meta { color: #666; font-size: 13px; margin-bottom: 16px; }
+    .date-group { margin: 16px 0; }
+    details { background: #fff; border: 1px solid #e5e5e5; border-radius: 8px; padding: 12px; margin-bottom: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
+    summary { cursor: pointer; font-weight: 600; }
+    .subtitle { color: #666; font-size: 13px; margin-top: 4px; }
+    pre { white-space: pre-wrap; word-break: break-word; background: #fafafa; padding: 10px; border-radius: 6px; border: 1px solid #eee; }
+    .badge { display: inline-block; background: #eef2ff; color: #3730a3; border-radius: 12px; padding: 2px 8px; font-size: 12px; margin-right: 6px; }
+    .search { margin: 12px 0 18px 0; }
+    input[type="search"] { width: 260px; padding: 8px 10px; border-radius: 8px; border: 1px solid #ccc; }
+  </style>
+</head>
+<body>
+  <h1>YouTube 요약</h1>
+  <div class="meta">생성: <span id="generatedAt"></span> / 총 <span id="total"></span>건</div>
+  <div class="search">
+    <input id="search" type="search" placeholder="제목/채널/요약 검색..." />
+  </div>
+  <div id="root"></div>
+
+  <script>
+    const payload = ${dataScript};
+    const root = document.getElementById('root');
+    const searchInput = document.getElementById('search');
+    const generatedAtEl = document.getElementById('generatedAt');
+    const totalEl = document.getElementById('total');
+
+    generatedAtEl.textContent = new Date(payload.generatedAt).toLocaleString('ko-KR');
+    totalEl.textContent = payload.items.length;
+
+    function groupByDate(items) {
+      const map = {};
+      for (const item of items) {
+        const d = new Date(item.publishedAt);
+        const key = d.toISOString().slice(0,10);
+        if (!map[key]) map[key] = [];
+        map[key].push(item);
+      }
+      return Object.entries(map)
+        .sort((a,b) => b[0].localeCompare(a[0]))
+        .map(([date, arr]) => ({ date, items: arr }));
+    }
+
+    function render(list) {
+      root.innerHTML = '';
+      const groups = groupByDate(list);
+      if (groups.length === 0) {
+        root.textContent = '표시할 항목이 없습니다.';
+        return;
+      }
+      for (const group of groups) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'date-group';
+        const h3 = document.createElement('h3');
+        h3.textContent = group.date;
+        wrapper.appendChild(h3);
+
+        group.items.forEach(item => {
+          const details = document.createElement('details');
+          const summary = document.createElement('summary');
+          summary.innerHTML = \`\${item.title} <span class="subtitle">(\${item.channelName})</span>\`;
+          const meta = document.createElement('div');
+          meta.className = 'meta';
+          meta.innerHTML = \`
+            <span class="badge">게시일 \${new Date(item.publishedAt).toLocaleString('ko-KR')}</span>
+            <span class="badge">처리 \${new Date(item.processedAt).toLocaleString('ko-KR')}</span>
+            <span class="badge"><a href="\${item.url}" target="_blank" rel="noopener">YouTube</a></span>
+          \`;
+          const pre = document.createElement('pre');
+          pre.textContent = item.summary;
+
+          details.appendChild(summary);
+          details.appendChild(meta);
+          details.appendChild(pre);
+          wrapper.appendChild(details);
+        });
+
+        root.appendChild(wrapper);
+      }
+    }
+
+    function matches(item, q) {
+      const hay = [item.title, item.channelName, item.summary].join(' ').toLowerCase();
+      return hay.includes(q);
+    }
+
+    searchInput.addEventListener('input', () => {
+      const q = searchInput.value.trim().toLowerCase();
+      if (!q) {
+        render(payload.items);
+        return;
+      }
+      render(payload.items.filter(it => matches(it, q)));
+    });
+
+    render(payload.items);
+  </script>
+</body>
+</html>`;
+}
+
+export async function writeSummariesHtmlToLocal(
+    records: SummaryRecord[],
+    options?: { outputDir?: string; fileName?: string }
+) {
+    const outputDir = options?.outputDir || path.join(process.cwd(), 'data', 'site');
+    const fileName = options?.fileName || 'index.html';
+    await fs.mkdir(outputDir, { recursive: true });
+    const filePath = path.join(outputDir, fileName);
+    const html = renderHtml(records);
+    await fs.writeFile(filePath, html, 'utf-8');
+    return filePath;
+}
+
+function buildPrefix(prefix?: string) {
+    if (!prefix) return '';
+    return prefix.endsWith('/') ? prefix : `${prefix}/`;
+}
+
+const storage = new Storage();
+
+export async function writeSummariesToGcs(
+    records: SummaryRecord[],
+    options: {
+        bucket: string;
+        prefix?: string;
+        jsonFileName?: string;
+        htmlFileName?: string;
+    }
+) {
+    const bucket = storage.bucket(options.bucket);
+    const prefix = buildPrefix(options.prefix);
+
+    const jsonPayload = {
+        generatedAt: new Date().toISOString(),
+        count: records.length,
+        items: records,
+    };
+    const html = renderHtml(records);
+
+    const jsonName = options.jsonFileName || 'latest.json';
+    const htmlName = options.htmlFileName || 'index.html';
+
+    const jsonFile = bucket.file(`${prefix}${jsonName}`);
+    const htmlFile = bucket.file(`${prefix}${htmlName}`);
+
+    await jsonFile.save(JSON.stringify(jsonPayload, null, 2), {
+        contentType: 'application/json',
+        cacheControl: 'no-store',
+    });
+    await htmlFile.save(html, {
+        contentType: 'text/html; charset=utf-8',
+        cacheControl: 'no-store',
+    });
+
+    return {
+        jsonUri: `gs://${options.bucket}/${prefix}${jsonName}`,
+        htmlUri: `gs://${options.bucket}/${prefix}${htmlName}`,
+    };
+}
