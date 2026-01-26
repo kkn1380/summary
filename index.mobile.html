@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>YouTube 요약 (모바일)</title>
+  <style>
+    body { font-family: 'Pretendard', system-ui, -apple-system, sans-serif; margin: 24px; background: #f7f7f9; }
+    h1 { margin-bottom: 8px; }
+    .meta { color: #666; font-size: 13px; margin-bottom: 16px; }
+    .date-group { margin: 16px 0; }
+    details { background: #fff; border: 1px solid #e5e5e5; border-radius: 8px; padding: 12px; margin-bottom: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
+    summary { cursor: pointer; font-weight: 600; }
+    .subtitle { color: #666; font-size: 13px; margin-top: 4px; }
+    pre { white-space: pre-wrap; word-break: break-word; background: #fafafa; padding: 10px; border-radius: 6px; border: 1px solid #eee; }
+    .badge { display: inline-block; background: #eef2ff; color: #3730a3; border-radius: 12px; padding: 2px 8px; font-size: 12px; margin-right: 6px; }
+    .search { margin: 12px 0 18px 0; }
+    input[type="search"] { width: 260px; padding: 8px 10px; border-radius: 8px; border: 1px solid #ccc; }
+    
+    h1 { font-size: 48px; }
+    summary, pre { font-size: 32px; }
+    .subtitle, .meta { font-size: 20px; }
+    input[type="search"] { width: 100%; font-size: 20px; }
+  
+  </style>
+</head>
+<body>
+  <h1>YouTube 요약 (모바일)</h1>
+  <div class="meta">생성: <span id="generatedAt"></span> / 총 <span id="total"></span>건</div>
+  <div class="search">
+    <input id="search" type="search" placeholder="제목/채널/요약 검색..." />
+  </div>
+  <div id="root"></div>
+
+  <script>
+    const payload = {"generatedAt":"2026-01-26T09:35:26.716Z","items":[{"title":"진종오 \"지방선거 앞둔 이 시기에 내부 분열, 국민의힘 자멸!... 단합해야!\"","channelName":"장르만 여의도","publishedAt":"2026-01-26T09:15:00.000Z","url":"https://www.youtube.com/watch?v=zFaxKVR5hCs","summary":"이 자막 내용은 주식 투자와는 직접적인 관련이 없습니다. 주로 국민의힘 당내 갈등과 민주당 소속 김경 서울시의원의 비리 의혹에 대한 진종호 국민의힘 의원의 인터뷰 내용을 담고 있습니다.\n\n**주요 내용 및 핵심 포인트 (5분 내외 길이로 정리)**\n\n국민의힘 진종호 의원(전 올림픽 사격 금메달리스트)과의 인터뷰에서는 크게 두 가지 정치적 이슈가 다뤄졌습니다.\n\n**1. 국민의힘 당내 갈등 및 한동훈 전 대표 징계 논란**\n*   **장동혁 대표의 단식:** 진종호 의원은 장동혁 대표의 단식이 '이유에 대한 많은 의구심'을 낳고 있으며, '신천지만 비호한 것이 아닌가' 하는 생각까지 든다고 밝혔습니다. 단식 시기가 부적절하며, 당내 분열을 심화시킬 뿐이라고 비판했습니다.\n*   **한동훈 전 대표 징계 문제:** 장동혁 대표가 한동훈 전 대표를 겨냥하여 단식했다는 해석에 동의하며, 한동훈 전 대표에 대한 징계(재명 포함) 여부를 놓고 당내 여론이 분분하다고 언급했습니다. 진종호 의원은 징계 절차가 제대로 이루어지지 않은 상황에서 재명은 부적절하며, 지난 토요일 대규모 집회에서 보여준 한동훈 전 대표 지지자들의 민심을 무시할 수 없다고 강조했습니다.\n*   **당내 분열 우려:** 현재 당이 '분열로 죽어가고 있다'며, 총선과 지방선거를 앞둔 시점에 내부 분열은 국민도 바라지 않을 것이라고 경고했습니다. 분열의 책임은 '우리 모두에게 있다'고 돌려 말했습니다.\n*   **신당 창당 가능성:** 한동훈 전 대표 측에서는 신당 창당 논의는 전혀 없다고 일축했습니다.\n\n**2. 김경 서울시의원 관련 비리 의혹 및 특검 요구**\n*   **의혹 제기 경위:** 진종호 의원은 지난해 9월 김경 시의원의 비리 의혹을 처음 제기했습니다. 서울시 사격 연맹 부회장으로부터 태릉 사격장 예산 지원을 대가로 김경 시의원이 특정 단체의 회원 명부를 받아 불법 당원 가입을 지시했다는 제보를 받았다고 설명했습니다.\n*   **불법 당원 가입 수법:** 김경 시의원이 특정 종교 단체의 회원 명부를 통해 인적 사항을 확보하고, 당원 가입서를 수기로 작성하게 했으며, 6개월치 당비를 대납해 투표권을 확보하려 했다는 정황을 언급했습니다. 이는 특정 후보(김민석 전 총리)를 밀어주고 영등포 구청장 자리를 얻으려 한 시도로 보인다고 진 의원은 주장했습니다.\n*   **민주당 연루 의혹 및 '꼬리 자르기':** 김경 시의원 사건은 단순한 개인 비리가 아닌, 여러 전·현직 민주당 의원들(안규백, 강선우, 김병기, 정청래 등)이 연루된 조직적인 움직임이라고 진 의원은 주장했습니다. 김경 시의원이 의혹 제기 직후 사퇴한 것은 민주당의 '꼬리 자르기'라고 비판했습니다. 김민석 전 총리 측은 관련 사실을 몰랐다고 부인했으나, 진 의원은 식사 정황 등을 근거로 반박하며 김 전 총리의 휴대전화 교체 등을 의심했습니다.\n*   **가족 비리 및 특검 요구:** 김경 시의원 가족들이 특정 재단을 만들어 불법 정치자금을 조성하고, 시의원 재임 중 수의계약을 통해 수십억 원의 부를 축적했다는 의혹도 제기했습니다. 진 의원은 초선 시의원이 예결위원장 등 중요한 자리를 맡은 것은 '상식적으로 불가능'하며, 누군가의 뒷배가 있었을 것이라고 추측했습니다. 경찰 조사만으로는 부족하며, 김경 시의원 의혹 전반에 대한 '특검'이 필요하다고 강력히 요구했습니다.\n*   **추가 녹취록 존재:** 진 의원은 경찰에 120개에 달하는 추가 녹취록 원본을 제출했다고 밝히며, 이를 통해 더 많은 사실이 드러날 것이라고 말했습니다.\n\n**한줄 요약 및 투자 관점 조언:**\n\n이 동영상은 정치적 갈등과 비리 의혹에 대한 내용으로, 투자 관점에서는 다음과 같은 교훈을 얻을 수 있습니다.\n\n**\"단기적인 정치적 이득이나 과도한 욕심보다는 장기적인 안목과 원칙을 가지고 투자에 임해야 하며, 투명하지 않은 정보나 불법적인 수단에 현혹되지 않는 것이 중요합니다.\"**","processedAt":"2026-01-26T09:35:26.707Z"}]};
+    const root = document.getElementById('root');
+    const searchInput = document.getElementById('search');
+    const generatedAtEl = document.getElementById('generatedAt');
+    const totalEl = document.getElementById('total');
+
+    generatedAtEl.textContent = new Date(payload.generatedAt).toLocaleString('ko-KR');
+    totalEl.textContent = payload.items.length;
+
+    function groupByDate(items) {
+      const map = {};
+      for (const item of items) {
+        const d = new Date(item.publishedAt);
+        const key = d.toISOString().slice(0,10);
+        if (!map[key]) map[key] = [];
+        map[key].push(item);
+      }
+      return Object.entries(map)
+        .sort((a,b) => b[0].localeCompare(a[0]))
+        .map(([date, arr]) => ({ date, items: arr }));
+    }
+
+    function render(list) {
+      root.innerHTML = '';
+      const groups = groupByDate(list);
+      if (groups.length === 0) {
+        root.textContent = '표시할 항목이 없습니다.';
+        return;
+      }
+      for (const group of groups) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'date-group';
+        const h3 = document.createElement('h3');
+        h3.textContent = group.date;
+        wrapper.appendChild(h3);
+
+        group.items.forEach(item => {
+          const details = document.createElement('details');
+          const summary = document.createElement('summary');
+          summary.innerHTML = `${item.title} <span class="subtitle">(${item.channelName})</span>`;
+          const meta = document.createElement('div');
+          meta.className = 'meta';
+          meta.innerHTML = `
+            <span class="badge">게시일 ${new Date(item.publishedAt).toLocaleString('ko-KR')}</span>
+            <span class="badge">처리 ${new Date(item.processedAt).toLocaleString('ko-KR')}</span>
+            <span class="badge"><a href="${item.url}" target="_blank" rel="noopener">YouTube</a></span>
+          `;
+          const pre = document.createElement('pre');
+          pre.textContent = item.summary;
+
+          details.appendChild(summary);
+          details.appendChild(meta);
+          details.appendChild(pre);
+          wrapper.appendChild(details);
+        });
+
+        root.appendChild(wrapper);
+      }
+    }
+
+    function matches(item, q) {
+      const hay = [item.title, item.channelName, item.summary].join(' ').toLowerCase();
+      return hay.includes(q);
+    }
+
+    searchInput.addEventListener('input', () => {
+      const q = searchInput.value.trim().toLowerCase();
+      if (!q) {
+        render(payload.items);
+        return;
+      }
+      render(payload.items.filter(it => matches(it, q)));
+    });
+
+    render(payload.items);
+  </script>
+</body>
+</html>
