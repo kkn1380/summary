@@ -11,6 +11,7 @@ dist/
 # Google Service Account Keys
 service-account-key.json
 *.json
+!latest.json
 !package.json
 !package-lock.json
 !tsconfig.json
