@@ -32,18 +32,30 @@ export async function writeSummariesToLocal(
     return filePath;
 }
 
-function renderHtml(records: SummaryRecord[]) {
+type RenderMode = 'default' | 'mobile';
+
+function renderHtml(records: SummaryRecord[], mode: RenderMode = 'default') {
     const data = {
         generatedAt: new Date().toISOString(),
         items: records,
     };
     const dataScript = JSON.stringify(data);
+    const isMobile = mode === 'mobile';
+    const titleText = isMobile ? 'YouTube 요약 (모바일)' : 'YouTube 요약';
+    const extraMobileStyles = isMobile
+        ? `
+    h1 { font-size: 48px; }
+    summary, pre { font-size: 32px; }
+    .subtitle, .meta { font-size: 20px; }
+    input[type="search"] { width: 100%; font-size: 20px; }
+  `
+        : '';
 
     return `<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>YouTube 요약 리스트</title>
+  <title>${titleText}</title>
   <style>
     body { font-family: 'Pretendard', system-ui, -apple-system, sans-serif; margin: 24px; background: #f7f7f9; }
     h1 { margin-bottom: 8px; }
@@ -56,10 +68,11 @@ function renderHtml(records: SummaryRecord[]) {
     .badge { display: inline-block; background: #eef2ff; color: #3730a3; border-radius: 12px; padding: 2px 8px; font-size: 12px; margin-right: 6px; }
     .search { margin: 12px 0 18px 0; }
     input[type="search"] { width: 260px; padding: 8px 10px; border-radius: 8px; border: 1px solid #ccc; }
+    ${extraMobileStyles}
   </style>
 </head>
 <body>
-  <h1>YouTube 요약</h1>
+  <h1>${titleText}</h1>
   <div class="meta">생성: <span id="generatedAt"></span> / 총 <span id="total"></span>건</div>
   <div class="search">
     <input id="search" type="search" placeholder="제목/채널/요약 검색..." />
@@ -160,6 +173,19 @@ export async function writeSummariesHtmlToLocal(
     return filePath;
 }
 
+export async function writeSummariesMobileHtmlToLocal(
+    records: SummaryRecord[],
+    options?: { outputDir?: string; fileName?: string }
+) {
+    const outputDir = options?.outputDir || path.join(process.cwd(), 'data', 'site');
+    const fileName = options?.fileName || 'index.mobile.html';
+    await fs.mkdir(outputDir, { recursive: true });
+    const filePath = path.join(outputDir, fileName);
+    const html = renderHtml(records, 'mobile');
+    await fs.writeFile(filePath, html, 'utf-8');
+    return filePath;
+}
+
 function buildPrefix(prefix?: string) {
     if (!prefix) return '';
     return prefix.endsWith('/') ? prefix : `${prefix}/`;
@@ -174,6 +200,7 @@ export async function writeSummariesToGcs(
         prefix?: string;
         jsonFileName?: string;
         htmlFileName?: string;
+        mobileHtmlFileName?: string;
     }
 ) {
     const bucket = storage.bucket(options.bucket);
@@ -185,12 +212,15 @@ export async function writeSummariesToGcs(
         items: records,
     };
     const html = renderHtml(records);
+    const mobileHtml = renderHtml(records, 'mobile');
 
     const jsonName = options.jsonFileName || 'latest.json';
     const htmlName = options.htmlFileName || 'index.html';
+    const mobileHtmlName = options.mobileHtmlFileName || 'index.mobile.html';
 
     const jsonFile = bucket.file(`${prefix}${jsonName}`);
     const htmlFile = bucket.file(`${prefix}${htmlName}`);
+    const mobileHtmlFile = bucket.file(`${prefix}${mobileHtmlName}`);
 
     await jsonFile.save(JSON.stringify(jsonPayload, null, 2), {
         contentType: 'application/json',
@@ -200,9 +230,14 @@ export async function writeSummariesToGcs(
         contentType: 'text/html; charset=utf-8',
         cacheControl: 'no-store',
     });
+    await mobileHtmlFile.save(mobileHtml, {
+        contentType: 'text/html; charset=utf-8',
+        cacheControl: 'no-store',
+    });
 
     return {
         jsonUri: `gs://${options.bucket}/${prefix}${jsonName}`,
         htmlUri: `gs://${options.bucket}/${prefix}${htmlName}`,
+        mobileHtmlUri: `gs://${options.bucket}/${prefix}${mobileHtmlName}`,
     };
 }

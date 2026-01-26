@@ -10,6 +10,7 @@ import { isVideoProcessed, markVideoAsProcessed } from './stateManager.js';
 import {
     writeSummariesToLocal,
     writeSummariesHtmlToLocal,
+    writeSummariesMobileHtmlToLocal,
     writeSummariesToGcs,
     SummaryRecord,
 } from './sitePublisher.js';
@@ -246,17 +247,21 @@ export async function monitor(): Promise<void> {
         const htmlPath = await writeSummariesHtmlToLocal(summaryRecords, {
             outputDir: resolvedOutputDir,
         });
+        const mobileHtmlPath = await writeSummariesMobileHtmlToLocal(summaryRecords, {
+            outputDir: resolvedOutputDir,
+        });
         console.log(`🗂  정적 데이터 저장 완료: ${jsonPath}`);
         console.log(`📄 정적 페이지 저장 완료: ${htmlPath}`);
+        console.log(`📄 모바일 페이지 저장 완료: ${mobileHtmlPath}`);
 
         const gcsBucket = process.env.SUMMARY_BUCKET;
         if (gcsBucket) {
             const prefix = process.env.SUMMARY_PREFIX;
-            const { jsonUri, htmlUri } = await writeSummariesToGcs(summaryRecords, {
+            const { jsonUri, htmlUri, mobileHtmlUri } = await writeSummariesToGcs(summaryRecords, {
                 bucket: gcsBucket,
                 prefix,
             });
-            console.log(`☁️  GCS 업로드 완료: ${jsonUri}, ${htmlUri}`);
+            console.log(`☁️  GCS 업로드 완료: ${jsonUri}, ${htmlUri}, ${mobileHtmlUri}`);
         }
     }
 }

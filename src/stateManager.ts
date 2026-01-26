@@ -50,7 +50,7 @@ export async function saveState(state: StateData): Promise<void> {
  */
 export async function isVideoProcessed(videoId: string): Promise<boolean> {
     const state = await loadState();
-    return state.videos.some(v => v.videoId === videoId && v.status === 'success');
+    return state.videos.some(v => v.videoId === videoId);
 }
 
 /**
