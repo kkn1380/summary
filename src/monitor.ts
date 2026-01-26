@@ -4,7 +4,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { getMultipleChannelsVideos, VideoInfo } from './channelMonitor.js';
 import { extractSubtitles, formatSubtitlesPlain } from './subtitleExtractor.js';
-import { summarizeSubtitles } from './aiSummarizer.js';
+import { RateLimitError, summarizeSubtitles } from './aiSummarizer.js';
 import { appendToSheet } from './sheetsManager.js';
 import { isVideoProcessed, markVideoAsProcessed } from './stateManager.js';
 import {
@@ -160,6 +160,7 @@ export async function monitor(): Promise<void> {
     // 3. 각 동영상 처리
     let successCount = 0;
     let failCount = 0;
+    let rateLimitError: RateLimitError | null = null;
 
     const summaryRecords: SummaryRecord[] = [];
 
@@ -179,8 +180,51 @@ export async function monitor(): Promise<void> {
             successCount++;
         } catch (error) {
             failCount++;
+            if (error instanceof RateLimitError) {
+                rateLimitError = error;
+                break;
+            }
             // Continue with next video
         }
+    }
+
+    if (rateLimitError) {
+        console.error('\n⛔ Gemini API 429 Too Many Requests로 인해 이후 작업을 중단합니다.');
+        if (rateLimitError.errorDetails) {
+            try {
+                const detailsJson = JSON.stringify(rateLimitError.errorDetails, null, 2);
+                console.error('   429 응답 error.details 원문:');
+                console.error(detailsJson);
+            } catch {
+                console.error('   429 응답 error.details 원문: (출력 실패)');
+            }
+        } else {
+            console.error('   429 응답 error.details 원문: (없음)');
+        }
+        if (rateLimitError.responseHeaders && Object.keys(rateLimitError.responseHeaders).length > 0) {
+            console.error('   429 응답 헤더:');
+            const headerEntries = Object.entries(rateLimitError.responseHeaders).sort(([a], [b]) => a.localeCompare(b));
+            for (const [key, value] of headerEntries) {
+                console.error(`     ${key}: ${value}`);
+            }
+        } else {
+            console.error('   429 응답 헤더: (비어있음)');
+        }
+        if (rateLimitError.retryAfterHeader || rateLimitError.retryAfterSeconds !== null) {
+            const retryAfterHeader = rateLimitError.retryAfterHeader ?? '없음';
+            const retryAfterSeconds = rateLimitError.retryAfterSeconds;
+            const retryAfterHours = retryAfterSeconds !== null
+                ? (retryAfterSeconds / 3600).toFixed(2)
+                : null;
+            const retryAfterMessage = retryAfterSeconds !== null
+                ? `${retryAfterSeconds}초 (~${retryAfterHours}시간)`
+                : '알 수 없음';
+            console.error(`   retry-after 헤더: ${retryAfterHeader}`);
+            console.error(`   재시도까지: ${retryAfterMessage}`);
+        } else {
+            console.error('   retry-after 헤더 없음 (재시도 시간 알 수 없음)');
+        }
+        return;
     }
 
     // 4. 결과 요약

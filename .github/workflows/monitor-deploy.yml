@@ -1,0 +1,57 @@
+name: Monitor And Deploy
+
+on:
+  schedule:
+    - cron: '0 * * * *' # 매시 정각(UTC). 필요 시 변경하세요.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  monitor-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install Dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Write Service Account Key
+        if: env.GOOGLE_SERVICE_ACCOUNT_KEY_JSON != ''
+        run: |
+          printf '%s' "$GOOGLE_SERVICE_ACCOUNT_KEY_JSON" > service-account-key.json
+
+      - name: Run Monitor
+        run: pnpm run monitor
+        env:
+          AI_PROVIDER: gemini
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          YOUTUBE_CHANNEL_IDS: ${{ secrets.YOUTUBE_CHANNEL_IDS }}
+          SUBTITLE_LANGUAGE: ${{ secrets.SUBTITLE_LANGUAGE }}
+          MAX_VIDEOS_PER_CHECK: ${{ secrets.MAX_VIDEOS_PER_CHECK }}
+          GOOGLE_SHEETS_SPREADSHEET_ID: ${{ secrets.GOOGLE_SHEETS_SPREADSHEET_ID }}
+          GOOGLE_SHEETS_SHEET_NAME: ${{ secrets.GOOGLE_SHEETS_SHEET_NAME }}
+          GOOGLE_SERVICE_ACCOUNT_KEY_PATH: ./service-account-key.json
+          GOOGLE_SERVICE_ACCOUNT_KEY_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY_JSON }}
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: data/site
+          force_orphan: true
+          commit_message: "Update site data"
