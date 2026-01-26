@@ -27,6 +27,7 @@ git fetch origin gh-pages >/dev/null 2>&1 || true
 git worktree add "${WORKTREE_DIR}" gh-pages >/dev/null
 
 rsync -av --delete --exclude '.git' "${REPO_DIR}/data/site/" "${WORKTREE_DIR}/" >/dev/null
+touch "${WORKTREE_DIR}/.nojekyll"
 
 cd "${WORKTREE_DIR}"
 git add -A

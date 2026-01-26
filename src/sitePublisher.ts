@@ -32,6 +32,39 @@ export async function writeSummariesToLocal(
     return filePath;
 }
 
+export async function loadExistingSummaries(
+    options?: { outputDir?: string; fileName?: string }
+): Promise<SummaryRecord[]> {
+    const outputDir = options?.outputDir || path.join(process.cwd(), 'data', 'site');
+    const fileName = options?.fileName || 'latest.json';
+    const filePath = path.join(outputDir, fileName);
+    try {
+        const raw = await fs.readFile(filePath, 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.items)) {
+            return parsed.items as SummaryRecord[];
+        }
+        return [];
+    } catch {
+        return [];
+    }
+}
+
+export function mergeSummaries(newRecords: SummaryRecord[], existingRecords: SummaryRecord[]) {
+    const map = new Map<string, SummaryRecord>();
+    for (const record of existingRecords) {
+        map.set(record.url, record);
+    }
+    for (const record of newRecords) {
+        map.set(record.url, record);
+    }
+    return Array.from(map.values()).sort((a, b) => {
+        const timeA = new Date(a.processedAt).getTime();
+        const timeB = new Date(b.processedAt).getTime();
+        return timeB - timeA;
+    });
+}
+
 type RenderMode = 'default' | 'mobile';
 
 function renderHtml(records: SummaryRecord[], mode: RenderMode = 'default') {

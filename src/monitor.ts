@@ -12,6 +12,8 @@ import {
     writeSummariesHtmlToLocal,
     writeSummariesMobileHtmlToLocal,
     writeSummariesToGcs,
+    loadExistingSummaries,
+    mergeSummaries,
     SummaryRecord,
 } from './sitePublisher.js';
 
@@ -241,13 +243,17 @@ export async function monitor(): Promise<void> {
     if (summaryRecords.length > 0) {
         const outputDir = process.env.SUMMARY_OUTPUT_DIR;
         const resolvedOutputDir = outputDir && outputDir.trim() ? outputDir : undefined;
-        const jsonPath = await writeSummariesToLocal(summaryRecords, {
+        const existingRecords = await loadExistingSummaries({
             outputDir: resolvedOutputDir,
         });
-        const htmlPath = await writeSummariesHtmlToLocal(summaryRecords, {
+        const mergedRecords = mergeSummaries(summaryRecords, existingRecords);
+        const jsonPath = await writeSummariesToLocal(mergedRecords, {
             outputDir: resolvedOutputDir,
         });
-        const mobileHtmlPath = await writeSummariesMobileHtmlToLocal(summaryRecords, {
+        const htmlPath = await writeSummariesHtmlToLocal(mergedRecords, {
+            outputDir: resolvedOutputDir,
+        });
+        const mobileHtmlPath = await writeSummariesMobileHtmlToLocal(mergedRecords, {
             outputDir: resolvedOutputDir,
         });
         console.log(`🗂  정적 데이터 저장 완료: ${jsonPath}`);
@@ -257,7 +263,7 @@ export async function monitor(): Promise<void> {
         const gcsBucket = process.env.SUMMARY_BUCKET;
         if (gcsBucket) {
             const prefix = process.env.SUMMARY_PREFIX;
-            const { jsonUri, htmlUri, mobileHtmlUri } = await writeSummariesToGcs(summaryRecords, {
+            const { jsonUri, htmlUri, mobileHtmlUri } = await writeSummariesToGcs(mergedRecords, {
                 bucket: gcsBucket,
                 prefix,
             });
