@@ -85,6 +85,12 @@ async function processVideo(video: VideoInfo): Promise<string | null> {
             await fs.writeFile(summaryFile, summary, 'utf-8');
         }
 
+        if (summary.trim() === 'NO_RESPONSE') {
+            console.log('   🚫 관심 주제 아님 (NO_RESPONSE). 재시도하지 않습니다.');
+            await markVideoAsProcessed(video.videoId, 'success', 'NO_RESPONSE');
+            return null;
+        }
+
         // 3. Google Sheets에 추가
         if (summary.length > 0) {
             console.log('   📊 구글 시트 업데이트 중...');
