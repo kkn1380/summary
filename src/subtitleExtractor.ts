@@ -1,5 +1,12 @@
 import { YoutubeTranscript } from 'youtube-transcript';
 import { getSubtitles, getVideoDetails, VideoDetails } from 'youtube-caption-extractor';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+
+const execFileAsync = promisify(execFile);
 
 export interface SubtitleSegment {
     text: string;
@@ -119,6 +126,27 @@ export async function extractSubtitles(
         }
     }
 
+    // Fallback: yt-dlp (로컬 바이너리 및 쿠키 사용 가능)
+    for (const lang of candidateLangs) {
+        try {
+            const subtitles = await getSubtitlesWithYtDlp(videoId, lang);
+            if (subtitles.length > 0) {
+                if (!videoDetails) {
+                    videoDetails = await getVideoDetails({ videoID: videoId, lang });
+                }
+                return {
+                    details: videoDetails!,
+                    subtitle: subtitles,
+                };
+            }
+            tried.push(`ytdlp:${lang}(empty)`);
+        } catch (error) {
+            lastError = error;
+            tried.push(`ytdlp:${lang}(error:${error instanceof Error ? error.message : String(error)})`);
+            continue;
+        }
+    }
+
     const reason = tried.length > 0 ? tried.join(', ') : 'no attempts';
     const lastErrMsg =
         lastError instanceof Error
@@ -127,6 +155,100 @@ export async function extractSubtitles(
     throw new Error(
         `자막을 찾을 수 없습니다. 비디오 ID: ${videoId}, 시도: ${reason}, 마지막 오류: ${lastErrMsg}`
     );
+}
+
+async function getSubtitlesWithYtDlp(videoId: string, lang: string): Promise<SubtitleSegment[]> {
+    const ytdlp = process.env.YTDLP_PATH || 'yt-dlp';
+    const cookiesPath = process.env.YTDLP_COOKIES;
+    const cookiesFromBrowser = process.env.YTDLP_COOKIES_FROM_BROWSER || 'chrome';
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'yt-sub-'));
+    const outputTemplate = path.join(tmpDir, '%(id)s.%(ext)s');
+    const args = [
+        '--skip-download',
+        '--write-sub',
+        '--write-auto-sub',
+        '--sub-lang',
+        lang,
+        '--sub-format',
+        'vtt',
+        '-o',
+        outputTemplate,
+        `https://www.youtube.com/watch?v=${videoId}`,
+    ];
+    if (cookiesPath) {
+        args.unshift(cookiesPath);
+        args.unshift('--cookies');
+    } else if (cookiesFromBrowser) {
+        args.unshift(cookiesFromBrowser);
+        args.unshift('--cookies-from-browser');
+    }
+
+    try {
+        await execFileAsync(ytdlp, args);
+        const files = await fs.readdir(tmpDir);
+        const vttFile = files.find(name => name.endsWith('.vtt'));
+        if (!vttFile) {
+            return [];
+        }
+        const content = await fs.readFile(path.join(tmpDir, vttFile), 'utf-8');
+        return parseVttToSegments(content);
+    } finally {
+        await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+}
+
+function parseVttToSegments(vtt: string): SubtitleSegment[] {
+    const lines = vtt.split(/\r?\n/);
+    const segments: SubtitleSegment[] = [];
+    let i = 0;
+    while (i < lines.length) {
+        const line = lines[i].trim();
+        if (!line || line.startsWith('WEBVTT')) {
+            i += 1;
+            continue;
+        }
+        if (line.includes('-->')) {
+            const [startRaw, endRaw] = line.split('-->').map(part => part.trim());
+            const start = toSeconds(startRaw);
+            const end = toSeconds(endRaw);
+            i += 1;
+            const textLines: string[] = [];
+            while (i < lines.length && lines[i].trim() !== '') {
+                const cleaned = lines[i].replace(/<[^>]+>/g, '').trim();
+                if (cleaned) {
+                    textLines.push(cleaned);
+                }
+                i += 1;
+            }
+            const text = textLines.join(' ').trim();
+            if (text) {
+                segments.push({
+                    text,
+                    start: String(start),
+                    dur: String(Math.max(0, end - start)),
+                });
+            }
+        }
+        i += 1;
+    }
+    return segments;
+}
+
+function toSeconds(value: string): number {
+    const clean = value.split(' ')[0].trim();
+    const parts = clean.split(':').map(Number);
+    if (parts.some(Number.isNaN)) {
+        return 0;
+    }
+    let seconds = 0;
+    if (parts.length === 3) {
+        seconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+    } else if (parts.length === 2) {
+        seconds = parts[0] * 60 + parts[1];
+    } else if (parts.length === 1) {
+        seconds = parts[0];
+    }
+    return Number.isFinite(seconds) ? seconds : 0;
 }
 
 /**

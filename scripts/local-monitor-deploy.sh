@@ -4,6 +4,7 @@ set -euo pipefail
 REPO_DIR="/Users/knkim/workspace/toy-project/summary"
 WORKTREE_DIR="$(mktemp -d /tmp/summary-gh-pages-XXXXXX)"
 LAST_RUN_FILE="${REPO_DIR}/data/last-run.txt"
+DEFAULT_YTDLP_PATH="/Users/knkim/Library/Python/3.9/bin/yt-dlp"
 
 cleanup() {
   if [[ -d "${WORKTREE_DIR}" ]]; then
@@ -15,6 +16,13 @@ cleanup() {
 trap cleanup EXIT
 
 cd "${REPO_DIR}"
+
+if [[ -z "${YTDLP_PATH:-}" && -x "${DEFAULT_YTDLP_PATH}" ]]; then
+  export YTDLP_PATH="${DEFAULT_YTDLP_PATH}"
+fi
+if [[ -z "${YTDLP_COOKIES_FROM_BROWSER:-}" ]]; then
+  export YTDLP_COOKIES_FROM_BROWSER="chrome"
+fi
 
 mkdir -p "${REPO_DIR}/data"
 
