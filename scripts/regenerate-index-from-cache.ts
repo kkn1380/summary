@@ -19,6 +19,13 @@ type SummaryRecord = {
 
 const execFileAsync = promisify(execFile);
 
+type VideoMeta = {
+  title: string;
+  channelName: string;
+  publishedAt?: string;
+  updatedAt: string;
+};
+
 function extractVideoIdFromUrl(url: string): string | null {
   const match = url.match(/watch\\?v=([a-zA-Z0-9_-]{11})/);
   return match ? match[1] : null;
@@ -123,6 +130,24 @@ async function fetchYtDlpMeta(
   }
 }
 
+async function loadMetaCache(): Promise<Map<string, VideoMeta>> {
+  try {
+    const raw = await fs.readFile(metaCachePath, 'utf-8');
+    const parsed = JSON.parse(raw) as Record<string, VideoMeta>;
+    return new Map(Object.entries(parsed || {}));
+  } catch {
+    return new Map();
+  }
+}
+
+async function saveMetaCache(cache: Map<string, VideoMeta>): Promise<void> {
+  const payload: Record<string, VideoMeta> = {};
+  for (const [key, value] of cache.entries()) {
+    payload[key] = value;
+  }
+  await fs.writeFile(metaCachePath, JSON.stringify(payload, null, 2), 'utf-8');
+}
+
 async function run() {
   const cacheDir = path.join(repoRoot, 'data', 'cache');
   let entries: string[] = [];
@@ -147,6 +172,7 @@ async function run() {
   const now = new Date().toISOString();
   const records = [];
   const existingMap = await loadExistingRecords();
+  const metaCache = await loadMetaCache();
 
   for (const file of summaryFiles) {
     const summary = await fs.readFile(path.join(cacheDir, file), 'utf-8');
@@ -161,6 +187,13 @@ async function run() {
     const processedAt = existing?.processedAt || now;
     const url = existing?.url || `https://www.youtube.com/watch?v=${videoId}`;
 
+    const cached = metaCache.get(videoId);
+    if (cached) {
+      if (title === videoId) title = cached.title;
+      if (channelName === 'unknown') channelName = cached.channelName;
+      if (publishedAt === now && cached.publishedAt) publishedAt = cached.publishedAt;
+    }
+
     if (title === videoId || channelName === 'unknown') {
       const oembed = await fetchOembed(videoId);
       if (oembed) {
@@ -172,15 +205,15 @@ async function run() {
     if (title === videoId || channelName === 'unknown' || publishedAt === now) {
       const ytdlpMeta = await fetchYtDlpMeta(videoId);
       if (ytdlpMeta) {
-        if (title === videoId) {
-          title = ytdlpMeta.title;
-        }
-        if (channelName === 'unknown') {
-          channelName = ytdlpMeta.channelName;
-        }
-        if (publishedAt === now && ytdlpMeta.publishedAt) {
-          publishedAt = ytdlpMeta.publishedAt;
-        }
+        if (title === videoId) title = ytdlpMeta.title;
+        if (channelName === 'unknown') channelName = ytdlpMeta.channelName;
+        if (publishedAt === now && ytdlpMeta.publishedAt) publishedAt = ytdlpMeta.publishedAt;
+        metaCache.set(videoId, {
+          title,
+          channelName,
+          publishedAt,
+          updatedAt: new Date().toISOString(),
+        });
       }
     }
 
@@ -194,6 +227,7 @@ async function run() {
     });
   }
 
+  await saveMetaCache(metaCache);
   await writeSummariesToLocal(records, { outputDir: path.join(repoRoot, 'data', 'site') });
   await writeSummariesHtmlToLocal(records, { outputDir: path.join(repoRoot, 'data', 'site') });
   await writeSummariesMobileHtmlToLocal(records, { outputDir: path.join(repoRoot, 'data', 'site') });
@@ -201,6 +235,7 @@ async function run() {
 }
 
 const repoRoot = '/Users/knkim/workspace/toy-project/summary';
+const metaCachePath = path.join(repoRoot, 'data', 'cache', 'video-meta.json');
 
 run().catch(error => {
   console.error(error);

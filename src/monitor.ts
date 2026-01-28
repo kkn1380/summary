@@ -3,7 +3,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs/promises';
 import path from 'path';
 import { getMultipleChannelsVideos, VideoInfo } from './channelMonitor.js';
-import { extractSubtitles, formatSubtitlesPlain } from './subtitleExtractor.js';
+import { extractSubtitles, extractVideoId, formatSubtitlesPlain } from './subtitleExtractor.js';
 import { RateLimitError, ServiceUnavailableError, summarizeSubtitles } from './aiSummarizer.js';
 import { appendToSheet } from './sheetsManager.js';
 import { isVideoProcessed, markVideoAsProcessed } from './stateManager.js';
@@ -202,6 +202,14 @@ export async function monitor(): Promise<void> {
     const outputDir = process.env.SUMMARY_OUTPUT_DIR;
 
     const summaryRecords: SummaryRecord[] = [];
+    const existingRecords = await loadExistingSummaries({
+        outputDir: outputDir && outputDir.trim() ? outputDir : undefined,
+    });
+    const processedIdsFromIndex = new Set(
+        existingRecords
+            .map(record => extractVideoId(record.url))
+            .filter(Boolean)
+    );
 
     console.log(`📺 모니터링 대상 채널: ${channelIds.length}개`);
     console.log(`📊 채널당 확인할 최대 동영상 수: ${maxVideos}개\n`);
@@ -236,6 +244,10 @@ export async function monitor(): Promise<void> {
     // 2. 처리되지 않은 동영상 필터링
     const unprocessedVideos: VideoInfo[] = [];
     for (const video of videos) {
+        if (processedIdsFromIndex.has(video.videoId)) {
+            console.log(`   ℹ️  index에 이미 존재: ${video.title}`);
+            continue;
+        }
         const processed = await isVideoProcessed(video.videoId);
         if (!processed) {
             unprocessedVideos.push(video);

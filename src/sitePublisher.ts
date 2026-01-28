@@ -46,7 +46,27 @@ export async function loadExistingSummaries(
         }
         return [];
     } catch {
-        return [];
+        const remoteUrl =
+            process.env.SUMMARY_REMOTE_URL
+            || (process.env.SUMMARY_REMOTE_BASE_URL
+                ? `${process.env.SUMMARY_REMOTE_BASE_URL.replace(/\\/$/, '')}/${fileName}`
+                : undefined);
+        if (!remoteUrl) {
+            return [];
+        }
+        try {
+            const response = await fetch(remoteUrl);
+            if (!response.ok) {
+                return [];
+            }
+            const parsed = await response.json();
+            if (parsed && Array.isArray(parsed.items)) {
+                return parsed.items as SummaryRecord[];
+            }
+            return [];
+        } catch {
+            return [];
+        }
     }
 }
 
@@ -59,9 +79,12 @@ export function mergeSummaries(newRecords: SummaryRecord[], existingRecords: Sum
         map.set(record.url, record);
     }
     return Array.from(map.values()).sort((a, b) => {
-        const timeA = new Date(a.processedAt).getTime();
-        const timeB = new Date(b.processedAt).getTime();
-        return timeB - timeA;
+        const timeA = new Date(a.publishedAt).getTime();
+        const timeB = new Date(b.publishedAt).getTime();
+        if (timeA !== timeB) {
+            return timeB - timeA;
+        }
+        return new Date(b.processedAt).getTime() - new Date(a.processedAt).getTime();
     });
 }
 
@@ -125,16 +148,23 @@ function renderHtml(records: SummaryRecord[], mode: RenderMode = 'default') {
     totalEl.textContent = payload.items.length;
 
     function groupByDate(items) {
-      const map = {};
-      for (const item of items) {
+      const sorted = [...items].sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+      const groups = [];
+      const map = new Map();
+      for (const item of sorted) {
         const d = new Date(item.publishedAt);
-        const key = d.toISOString().slice(0,10);
-        if (!map[key]) map[key] = [];
-        map[key].push(item);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const key = y + '-' + m + '-' + day;
+        if (!map.has(key)) {
+          const group = { date: key, items: [] };
+          map.set(key, group);
+          groups.push(group);
+        }
+        map.get(key).items.push(item);
       }
-      return Object.entries(map)
-        .sort((a,b) => b[0].localeCompare(a[0]))
-        .map(([date, arr]) => ({ date, items: arr }));
+      return groups;
     }
 
     function render(list) {
