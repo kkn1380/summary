@@ -94,8 +94,10 @@ function renderHtml(records: SummaryRecord[], mode: RenderMode = 'default') {
     h1 { margin-bottom: 8px; }
     .meta { color: #666; font-size: 13px; margin-bottom: 16px; }
     .date-group { margin: 16px 0; }
+    .date-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
     details { background: #fff; border: 1px solid #e5e5e5; border-radius: 8px; padding: 12px; margin-bottom: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
     summary { cursor: pointer; font-weight: 600; }
+    .tts-btn { margin: 8px 0 4px 0; padding: 6px 10px; border-radius: 8px; border: 1px solid #ddd; background: #f5f5f7; cursor: pointer; }
     .subtitle { color: #666; font-size: 13px; margin-top: 4px; }
     pre { white-space: pre-wrap; word-break: break-word; background: #fafafa; padding: 10px; border-radius: 6px; border: 1px solid #eee; }
     .badge { display: inline-block; background: #eef2ff; color: #3730a3; border-radius: 12px; padding: 2px 8px; font-size: 12px; margin-right: 6px; }
@@ -145,18 +147,43 @@ function renderHtml(records: SummaryRecord[], mode: RenderMode = 'default') {
       for (const group of groups) {
         const wrapper = document.createElement('div');
         wrapper.className = 'date-group';
+        const header = document.createElement('div');
+        header.className = 'date-header';
         const h3 = document.createElement('h3');
         h3.textContent = group.date;
-        wrapper.appendChild(h3);
+        const dateTtsBtn = document.createElement('button');
+        dateTtsBtn.type = 'button';
+        dateTtsBtn.className = 'tts-btn';
+        dateTtsBtn.textContent = '🔊 날짜 듣기';
+        dateTtsBtn.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const text = group.items
+            .map(entry => \`제목: \${entry.title}. 요약: \${entry.summary}\`)
+            .join('\\n\\n');
+          toggleTts(text, dateTtsBtn);
+        });
+        header.appendChild(h3);
+        header.appendChild(dateTtsBtn);
+        wrapper.appendChild(header);
 
         group.items.forEach(item => {
           const details = document.createElement('details');
           const summary = document.createElement('summary');
           summary.innerHTML = \`\${item.title} <span class="subtitle">(\${item.channelName})</span>\`;
+          const ttsBtn = document.createElement('button');
+          ttsBtn.type = 'button';
+          ttsBtn.className = 'tts-btn';
+          ttsBtn.textContent = '🔊 듣기';
+          ttsBtn.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            toggleTts(item.summary, ttsBtn);
+          });
           const meta = document.createElement('div');
           meta.className = 'meta';
           meta.innerHTML = \`
-            <span class="badge">게시일 \${new Date(item.publishedAt).toLocaleString('ko-KR')}</span>
+            <span class="badge">유튜브 게시일 \${new Date(item.publishedAt).toLocaleString('ko-KR')}</span>
             <span class="badge">처리 \${new Date(item.processedAt).toLocaleString('ko-KR')}</span>
             <span class="badge"><a href="\${item.url}" target="_blank" rel="noopener">YouTube</a></span>
           \`;
@@ -164,6 +191,7 @@ function renderHtml(records: SummaryRecord[], mode: RenderMode = 'default') {
           pre.textContent = item.summary;
 
           details.appendChild(summary);
+          details.appendChild(ttsBtn);
           details.appendChild(meta);
           details.appendChild(pre);
           wrapper.appendChild(details);
@@ -186,6 +214,51 @@ function renderHtml(records: SummaryRecord[], mode: RenderMode = 'default') {
       }
       render(payload.items.filter(it => matches(it, q)));
     });
+
+    const supportsTts = 'speechSynthesis' in window;
+    let currentUtterance = null;
+    let currentButton = null;
+
+    function resetTtsButton(button) {
+      if (!button) return;
+      button.textContent = '🔊 듣기';
+      button.dataset.state = 'idle';
+    }
+
+    function toggleTts(text, button) {
+      if (!supportsTts) {
+        alert('이 브라우저는 TTS를 지원하지 않습니다.');
+        return;
+      }
+      if (button.dataset.state === 'playing') {
+        window.speechSynthesis.cancel();
+        resetTtsButton(button);
+        currentUtterance = null;
+        currentButton = null;
+        return;
+      }
+      if (currentButton && currentButton !== button) {
+        window.speechSynthesis.cancel();
+        resetTtsButton(currentButton);
+      }
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'ko-KR';
+      utterance.onend = () => {
+        resetTtsButton(button);
+        currentUtterance = null;
+        currentButton = null;
+      };
+      utterance.onerror = () => {
+        resetTtsButton(button);
+        currentUtterance = null;
+        currentButton = null;
+      };
+      currentUtterance = utterance;
+      currentButton = button;
+      button.dataset.state = 'playing';
+      button.textContent = '⏹ 중지';
+      window.speechSynthesis.speak(utterance);
+    }
 
     render(payload.items);
   </script>

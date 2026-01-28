@@ -71,8 +71,9 @@ if [[ -f "${LAST_RUN_FILE}" ]]; then
   last_run_epoch=$(cat "${LAST_RUN_FILE}" 2>/dev/null || echo 0)
 fi
 
-if [[ "${last_run_epoch}" -ge "${latest_schedule}" ]]; then
+if [[ "${FORCE_RUN:-}" != "1" && "${last_run_epoch}" -ge "${latest_schedule}" ]]; then
   echo "[info] skip: last run is newer than latest schedule."
+  echo "[info] set FORCE_RUN=1 to bypass schedule guard."
   exit 0
 fi
 

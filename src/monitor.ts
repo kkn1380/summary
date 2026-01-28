@@ -26,6 +26,69 @@ async function fileExists(p: string) {
     }
 }
 
+async function writeSiteFromRecords(records: SummaryRecord[], outputDir?: string): Promise<void> {
+    const resolvedOutputDir = outputDir && outputDir.trim() ? outputDir : undefined;
+    const existingRecords = await loadExistingSummaries({
+        outputDir: resolvedOutputDir,
+    });
+    const mergedRecords = mergeSummaries(records, existingRecords);
+    if (mergedRecords.length === 0) {
+        return;
+    }
+    const jsonPath = await writeSummariesToLocal(mergedRecords, {
+        outputDir: resolvedOutputDir,
+    });
+    const htmlPath = await writeSummariesHtmlToLocal(mergedRecords, {
+        outputDir: resolvedOutputDir,
+    });
+    const mobileHtmlPath = await writeSummariesMobileHtmlToLocal(mergedRecords, {
+        outputDir: resolvedOutputDir,
+    });
+    console.log(`🗂  정적 데이터 저장 완료: ${jsonPath}`);
+    console.log(`📄 정적 페이지 저장 완료: ${htmlPath}`);
+    console.log(`📄 모바일 페이지 저장 완료: ${mobileHtmlPath}`);
+
+    const gcsBucket = process.env.SUMMARY_BUCKET;
+    if (gcsBucket) {
+        const prefix = process.env.SUMMARY_PREFIX;
+        const { jsonUri, htmlUri, mobileHtmlUri } = await writeSummariesToGcs(mergedRecords, {
+            bucket: gcsBucket,
+            prefix,
+        });
+        console.log(`☁️  GCS 업로드 완료: ${jsonUri}, ${htmlUri}, ${mobileHtmlUri}`);
+    }
+}
+
+async function summarizePendingCache(): Promise<void> {
+    const cacheDir = path.join(process.cwd(), 'data', 'cache');
+    const cacheExists = await fileExists(cacheDir);
+    if (!cacheExists) {
+        return;
+    }
+    const entries = await fs.readdir(cacheDir);
+    const subtitleFiles = entries.filter(name => name.endsWith('.subtitle.txt'));
+    if (subtitleFiles.length === 0) {
+        return;
+    }
+
+    console.log(`🧾 캐시된 자막 중 요약 누락 ${subtitleFiles.length}건 확인 중...`);
+
+    for (const file of subtitleFiles) {
+        const videoId = file.replace('.subtitle.txt', '');
+        const subtitleFile = path.join(cacheDir, file);
+        const summaryFile = path.join(cacheDir, `${videoId}.summary.txt`);
+        const hasSummary = await fileExists(summaryFile);
+        if (hasSummary) {
+            continue;
+        }
+        console.log(`   🤖 요약 생성(캐시): ${videoId}`);
+        const subtitleText = await fs.readFile(subtitleFile, 'utf-8');
+        const summary = await summarizeSubtitles(subtitleText);
+        await fs.writeFile(summaryFile, summary, 'utf-8');
+        console.log(`   ✅ 요약 완료(캐시): ${videoId}`);
+    }
+}
+
 // Load environment variables
 dotenv.config();
 
@@ -136,9 +199,29 @@ export async function monitor(): Promise<void> {
 
     const channelIds = channelIdsStr.split(',').map(id => id.trim()).filter(Boolean);
     const maxVideos = parseInt(process.env.MAX_VIDEOS_PER_CHECK || '10', 10);
+    const outputDir = process.env.SUMMARY_OUTPUT_DIR;
+
+    const summaryRecords: SummaryRecord[] = [];
 
     console.log(`📺 모니터링 대상 채널: ${channelIds.length}개`);
     console.log(`📊 채널당 확인할 최대 동영상 수: ${maxVideos}개\n`);
+
+    // 0. 캐시된 자막 중 요약 누락분 먼저 처리
+    try {
+        await summarizePendingCache();
+    } catch (error) {
+        if (error instanceof RateLimitError) {
+            console.error('\n⛔ Gemini API 429 Too Many Requests로 인해 이후 작업을 중단합니다.');
+            await writeSiteFromRecords(summaryRecords, outputDir);
+            return;
+        }
+        if (error instanceof ServiceUnavailableError) {
+            console.error('\n⛔ Gemini API 503 Service Unavailable로 인해 이후 작업을 중단합니다.');
+            await writeSiteFromRecords(summaryRecords, outputDir);
+            return;
+        }
+        throw error;
+    }
 
     // 1. 채널들의 최신 동영상 가져오기
     console.log('🔍 최신 동영상 확인 중...');
@@ -181,8 +264,6 @@ export async function monitor(): Promise<void> {
     let failCount = 0;
     let rateLimitError: RateLimitError | null = null;
     let serviceUnavailableError: ServiceUnavailableError | null = null;
-
-    const summaryRecords: SummaryRecord[] = [];
 
     for (const video of unprocessedVideos) {
         try {
@@ -248,10 +329,12 @@ export async function monitor(): Promise<void> {
         } else {
             console.error('   retry-after 헤더 없음 (재시도 시간 알 수 없음)');
         }
+        await writeSiteFromRecords(summaryRecords, outputDir);
         return;
     }
     if (serviceUnavailableError) {
         console.error('\n⛔ Gemini API 503 Service Unavailable로 인해 이후 작업을 중단합니다.');
+        await writeSiteFromRecords(summaryRecords, outputDir);
         return;
     }
 
@@ -266,34 +349,7 @@ export async function monitor(): Promise<void> {
 
     // 정적 페이지용 로컬 JSON 출력 (로컬 테스트 우선)
     if (summaryRecords.length > 0) {
-        const outputDir = process.env.SUMMARY_OUTPUT_DIR;
-        const resolvedOutputDir = outputDir && outputDir.trim() ? outputDir : undefined;
-        const existingRecords = await loadExistingSummaries({
-            outputDir: resolvedOutputDir,
-        });
-        const mergedRecords = mergeSummaries(summaryRecords, existingRecords);
-        const jsonPath = await writeSummariesToLocal(mergedRecords, {
-            outputDir: resolvedOutputDir,
-        });
-        const htmlPath = await writeSummariesHtmlToLocal(mergedRecords, {
-            outputDir: resolvedOutputDir,
-        });
-        const mobileHtmlPath = await writeSummariesMobileHtmlToLocal(mergedRecords, {
-            outputDir: resolvedOutputDir,
-        });
-        console.log(`🗂  정적 데이터 저장 완료: ${jsonPath}`);
-        console.log(`📄 정적 페이지 저장 완료: ${htmlPath}`);
-        console.log(`📄 모바일 페이지 저장 완료: ${mobileHtmlPath}`);
-
-        const gcsBucket = process.env.SUMMARY_BUCKET;
-        if (gcsBucket) {
-            const prefix = process.env.SUMMARY_PREFIX;
-            const { jsonUri, htmlUri, mobileHtmlUri } = await writeSummariesToGcs(mergedRecords, {
-                bucket: gcsBucket,
-                prefix,
-            });
-            console.log(`☁️  GCS 업로드 완료: ${jsonUri}, ${htmlUri}, ${mobileHtmlUri}`);
-        }
+        await writeSiteFromRecords(summaryRecords, outputDir);
     }
 }
 

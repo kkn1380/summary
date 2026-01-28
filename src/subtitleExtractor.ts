@@ -58,20 +58,8 @@ export async function extractSubtitles(
 ): Promise<ContentInfo> {
     const videoId = extractVideoId(urlOrId);
     const baseLang = options.lang || 'ko'; // 기본값: 한국어
-    const baseRoot = baseLang.split('-')[0]; // ko-KR 같은 경우 루트만 추출
-    const krVariants = baseRoot === 'ko' ? ['ko', 'ko-KR'] : [];
-
-    // 언어 시도 순서: 지정 언어/변형 -> 자동자막(a.) 변형 -> 국가 코드 변형 -> en -> 자동 en
-    const candidateLangs = Array.from(
-        new Set([
-            baseLang,
-            baseLang.startsWith('a.') ? baseLang : `a.${baseLang}`,
-            ...krVariants,
-            ...krVariants.map(l => `a.${l}`),
-            'en',
-            'a.en',
-        ])
-    ).filter(Boolean) as string[];
+    // 시도 언어는 지정 언어만 사용
+    const candidateLangs = [baseLang];
 
     const tried: string[] = [];
     let lastError: unknown = null;
