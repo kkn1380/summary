@@ -186,12 +186,18 @@ async function getSubtitlesWithYtDlp(videoId: string, lang: string): Promise<Sub
     try {
         await execFileAsync(ytdlp, args);
         const files = await fs.readdir(tmpDir);
-        const vttFile = files.find(name => name.endsWith('.vtt'));
+        const vttFiles = files.filter(name => name.endsWith('.vtt'));
+        if (vttFiles.length === 0) {
+            return [];
+        }
+        const manualFile = vttFiles.find(name => name.endsWith(`.${lang}.vtt`) && !name.includes(`.a.${lang}.`));
+        const autoFile = vttFiles.find(name => name.endsWith(`.a.${lang}.vtt`));
+        const vttFile = manualFile || autoFile || vttFiles[0];
         if (!vttFile) {
             return [];
         }
         const content = await fs.readFile(path.join(tmpDir, vttFile), 'utf-8');
-        return parseVttToSegments(content);
+        return normalizeSegments(parseVttToSegments(content));
     } finally {
         await fs.rm(tmpDir, { recursive: true, force: true });
     }
@@ -249,6 +255,56 @@ function toSeconds(value: string): number {
         seconds = parts[0];
     }
     return Number.isFinite(seconds) ? seconds : 0;
+}
+
+function normalizeText(text: string) {
+    return text.replace(/\s+/g, ' ').trim();
+}
+
+function comparableText(text: string) {
+    return normalizeText(text).replace(/[^a-zA-Z0-9가-힣]+/g, '').toLowerCase();
+}
+
+function normalizeSegments(segments: SubtitleSegment[]): SubtitleSegment[] {
+    const normalized: SubtitleSegment[] = [];
+    for (const seg of segments) {
+        const text = normalizeText(seg.text);
+        if (!text) continue;
+        const start = Number(seg.start);
+        const dur = Number(seg.dur);
+        const end = start + (Number.isFinite(dur) ? dur : 0);
+        const currentComparable = comparableText(text);
+        const prev = normalized[normalized.length - 1];
+        if (prev) {
+            const prevText = normalizeText(prev.text);
+            const prevComparable = comparableText(prevText);
+            const prevStart = Number(prev.start);
+            const prevDur = Number(prev.dur);
+            const prevEnd = prevStart + (Number.isFinite(prevDur) ? prevDur : 0);
+            const gap = start - prevEnd;
+
+            if (currentComparable && currentComparable === prevComparable && gap <= 2) {
+                continue;
+            }
+            if (currentComparable && prevComparable && prevComparable.includes(currentComparable) && gap <= 2) {
+                continue;
+            }
+            if (currentComparable && prevComparable && currentComparable.includes(prevComparable) && gap <= 2) {
+                normalized[normalized.length - 1] = {
+                    text,
+                    start: prev.start,
+                    dur: String(Math.max(0, end - prevStart)),
+                };
+                continue;
+            }
+        }
+        normalized.push({
+            text,
+            start: seg.start,
+            dur: seg.dur,
+        });
+    }
+    return normalized;
 }
 
 /**
