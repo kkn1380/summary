@@ -4,7 +4,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { getMultipleChannelsVideos, VideoInfo } from './channelMonitor.js';
 import { extractSubtitles, formatSubtitlesPlain } from './subtitleExtractor.js';
-import { RateLimitError, summarizeSubtitles } from './aiSummarizer.js';
+import { RateLimitError, ServiceUnavailableError, summarizeSubtitles } from './aiSummarizer.js';
 import { appendToSheet } from './sheetsManager.js';
 import { isVideoProcessed, markVideoAsProcessed } from './stateManager.js';
 import {
@@ -156,6 +156,16 @@ export async function monitor(): Promise<void> {
         const processed = await isVideoProcessed(video.videoId);
         if (!processed) {
             unprocessedVideos.push(video);
+            continue;
+        }
+        // 자막은 있으나 요약이 없는 경우는 다시 요약하도록 처리
+        const cacheDir = path.join(process.cwd(), 'data', 'cache');
+        const subtitleFile = path.join(cacheDir, `${video.videoId}.subtitle.txt`);
+        const summaryFile = path.join(cacheDir, `${video.videoId}.summary.txt`);
+        const hasSubtitle = await fileExists(subtitleFile);
+        const hasSummary = await fileExists(summaryFile);
+        if (hasSubtitle && !hasSummary) {
+            unprocessedVideos.push(video);
         }
     }
 
@@ -170,6 +180,7 @@ export async function monitor(): Promise<void> {
     let successCount = 0;
     let failCount = 0;
     let rateLimitError: RateLimitError | null = null;
+    let serviceUnavailableError: ServiceUnavailableError | null = null;
 
     const summaryRecords: SummaryRecord[] = [];
 
@@ -191,6 +202,10 @@ export async function monitor(): Promise<void> {
             failCount++;
             if (error instanceof RateLimitError) {
                 rateLimitError = error;
+                break;
+            }
+            if (error instanceof ServiceUnavailableError) {
+                serviceUnavailableError = error;
                 break;
             }
             // Continue with next video
@@ -233,6 +248,10 @@ export async function monitor(): Promise<void> {
         } else {
             console.error('   retry-after 헤더 없음 (재시도 시간 알 수 없음)');
         }
+        return;
+    }
+    if (serviceUnavailableError) {
+        console.error('\n⛔ Gemini API 503 Service Unavailable로 인해 이후 작업을 중단합니다.');
         return;
     }
 

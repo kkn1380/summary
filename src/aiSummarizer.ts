@@ -42,8 +42,22 @@ export class RateLimitError extends Error {
   }
 }
 
+export class ServiceUnavailableError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ServiceUnavailableError';
+    this.status = status;
+  }
+}
+
 export function isRateLimitError(error: unknown): error is RateLimitError {
   return error instanceof RateLimitError;
+}
+
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function ensureRetryAfterCapture(): void {
@@ -170,66 +184,75 @@ async function summarizeWithGemini(
 
   const prompt = language === 'ko'
     ? `역할: 당신은 엄격한 기준을 가진 '금융/투자 전문 에디터'입니다.
-    제공된 텍스트는 YouTube 영상의 자동 생성 자막입니다.
-    아래 **[0. 주제 필터링]** 단계를 가장 먼저 수행하고, 통과했을 때만 나머지 작업을 진행하세요.
+      제공된 텍스트는 YouTube 영상의 자동 생성 자막입니다.
+      아래 단계에 따라 분석을 수행하되, **출력 형식은 반드시 지시된 포맷만 남기세요.**
 
-    [0. 주제 필터링 (가장 중요)]
-    - 텍스트 전체 내용을 분석하여 **'주식 투자', '경제 시황', '기업 분석', '재테크'**와 직접적으로 관련된 내용인지 판단하세요.
-    - 단순히 정치인들의 가십, 연예, 유머, 일상 잡담, 혹은 경제와 무관한 정치 공방(예: 청문회 말싸움 등)이라면 **요약하지 마세요.**
-    - **[판단 기준]:** 투자자가 이 내용을 보고 투자의사 결정에 참고할 만한 정보가 있는가?
-    - **[행동 지침]:** 투자/경제 관련 내용이 아니라고 판단되면, 아무런 설명 없이 오직 **"NO_RESPONSE"** 라고만 출력하고 종료하세요.
+      [0. 주제 필터링 (내부 처리)]
+      - 텍스트가 **'주식 투자', '경제 시황', '기업 분석', '재테크'**와 직접적으로 관련된 내용인지 판단하세요.
+      - 단순히 정치인들의 가십, 연예, 유머, 일상 잡담, 혹은 경제와 무관한 정치 공방이라면 **요약하지 마세요.**
+      - **투자/경제 관련 내용이 아니라고 판단되면, 아무런 설명 없이 오직 "NO_RESPONSE" 라고만 출력하고 종료하세요.**
 
-    (※ 위 필터링을 통과한 경우에만 아래 [1]~[3]을 수행하세요.)
+      [1. 오타/수치 보정 및 잡담 제거 (내부 처리)]
+      - 음성 인식 오류(오타)를 문맥에 맞게 보정하고, 특히 숫자(주가, 금리 등) 단위를 정확히 맞추세요. (보정 목록은 출력하지 마세요.)
+      - 영상 중간에 포함된 **상품 광고(PPL, 의류/전자기기 판매 등), 진행자의 사적인 농담, 의미 없는 추임새는 요약에서 완전히 배제**하세요.
 
-    [1. 오타 및 수치 문맥 보정]
-    - 음성 인식 오류로 인한 오타를 보정하되, 특히 **숫자(주가, 금리, 연도 등)**에 집중하세요.
-    - **문맥과 경제적 상식**을 사용하여 비논리적인 숫자(예: 2024년을 24원으로 표기, 코스피 2500을 25로 표기 등)를 올바르게 추론하여 수정하세요.
-    - 단, 인명이나 팩트 자체를 당신의 외부 지식으로 함부로 바꾸지는 마세요.
+      [2. 요약문 작성 (출력 대상)]
+      - 섹션 헤더(예: [2. 핵심 요약])를 붙이지 말고, 바로 본론부터 작성하세요.
+      - 문체는 정중하고 신뢰감 있는 **"~습니다/합니다" 체**를 사용하세요. (예: "분석해요" (X) -> "분석합니다" (O))
+      - 내용은 줄글(Paragraph)과 개조식(Bullet points)을 적절히 섞어 가독성 있게 구성하세요.
 
-    [2. 핵심 요약]
-    - 잡담과 추임새를 제거하고, 투자자에게 필요한 핵심 정보 위주로 **5분 내외 길이(A4 1장 분량)**로 정리하세요.
-    - 문체는 "해요체"를 사용해 주세요.
+      [3. 투자 인사이트 (출력 대상)]
+      - 요약문 작성이 끝나면 하단에 구분선(---)을 넣고 **[투자 조언]** 섹션을 추가하세요.
+      - 이 영상의 내용을 바탕으로 투자자가 취해야 할 행동이나 마인드셋을 한 줄로 명확히 조언하세요.
 
-    [3. 투자 인사이트]
-    - 요약문 맨 마지막에 **[투자 조언]** 섹션을 추가하여, 이 영상 내용을 바탕으로 한 당신의 한 줄 코멘트를 작성해 주세요.
-
-    ---
-    [자막 데이터]
-    ${subtitleText}`
+      ---
+      [자막 데이터]
+      ${subtitleText}`
     : `This is a YouTube video transcript. Please summarize the main content and key points in 3-5 sentences:\n\n${subtitleText}`;
 
-  try {
-    ensureRetryAfterCapture();
-    lastRetryAfterHeader = null;
-    lastResponseHeaders = null;
-    const result = await model.generateContent(prompt);
-    const response = result.response;
-    return response.text();
-  } catch (error) {
-    const fetchError = error as FetchErrorLike;
-    if (fetchError?.status === 429) {
-      const fallbackKey = process.env.GEMINI_API_KEY2;
-      if (fallbackKey && fallbackKey !== apiKey && geminiKeyOverride !== fallbackKey) {
-        geminiKeyOverride = fallbackKey;
-        console.warn('Gemini API 429 발생: GEMINI_API_KEY2로 전환하여 재시도합니다.');
-        return summarizeWithGemini(subtitleText, fallbackKey, language);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      ensureRetryAfterCapture();
+      lastRetryAfterHeader = null;
+      lastResponseHeaders = null;
+      const result = await model.generateContent(prompt);
+      const response = result.response;
+      return response.text();
+    } catch (error) {
+      const fetchError = error as FetchErrorLike;
+      if (fetchError?.status === 503) {
+        if (attempt === 0) {
+          console.warn('Gemini API 503 발생: 5초 후 재시도합니다.');
+          await sleep(5000);
+          continue;
+        }
+        throw new ServiceUnavailableError('Gemini API 503 Service Unavailable (재시도 실패)', fetchError.status);
       }
-      const retryAfterHeader = lastRetryAfterHeader;
-      const retryAfterSeconds = parseRetryAfterSeconds(retryAfterHeader)
-        ?? parseRetryAfterFromDetails(fetchError.errorDetails);
-      const message = `Gemini API 429 Too Many Requests: ${formatRetryAfterMessage(retryAfterHeader, retryAfterSeconds)}`;
-      throw new RateLimitError(
-        message,
-        fetchError.status,
-        retryAfterHeader,
-        retryAfterSeconds,
-        lastResponseHeaders,
-        fetchError.errorDetails
-      );
+      if (fetchError?.status === 429) {
+        const fallbackKey = process.env.GEMINI_API_KEY2;
+        if (fallbackKey && fallbackKey !== apiKey && geminiKeyOverride !== fallbackKey) {
+          geminiKeyOverride = fallbackKey;
+          console.warn('Gemini API 429 발생: GEMINI_API_KEY2로 전환하여 재시도합니다.');
+          return summarizeWithGemini(subtitleText, fallbackKey, language);
+        }
+        const retryAfterHeader = lastRetryAfterHeader;
+        const retryAfterSeconds = parseRetryAfterSeconds(retryAfterHeader)
+          ?? parseRetryAfterFromDetails(fetchError.errorDetails);
+        const message = `Gemini API 429 Too Many Requests: ${formatRetryAfterMessage(retryAfterHeader, retryAfterSeconds)}`;
+        throw new RateLimitError(
+          message,
+          fetchError.status,
+          retryAfterHeader,
+          retryAfterSeconds,
+          lastResponseHeaders,
+          fetchError.errorDetails
+        );
+      }
+      console.error('Gemini API error:', error);
+      throw new Error('Gemini API를 통한 요약 생성에 실패했습니다');
     }
-    console.error('Gemini API error:', error);
-    throw new Error('Gemini API를 통한 요약 생성에 실패했습니다');
   }
+  throw new Error('Gemini API를 통한 요약 생성에 실패했습니다');
 }
 
 /**
