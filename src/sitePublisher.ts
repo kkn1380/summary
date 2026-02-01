@@ -98,6 +98,7 @@ function renderDynamicHtml(mode: RenderMode = 'default') {
     h1 { font-size: 48px; }
     summary, pre { font-size: 32px; }
     .subtitle, .meta { font-size: 20px; }
+    .channels { font-size: 28px; padding: 16px; }
     input[type="search"] { width: 100%; font-size: 20px; }
   `
         : '';
@@ -111,6 +112,8 @@ function renderDynamicHtml(mode: RenderMode = 'default') {
     body { font-family: 'Pretendard', system-ui, -apple-system, sans-serif; margin: 24px; background: #f7f7f9; }
     h1 { margin-bottom: 8px; }
     .meta { color: #666; font-size: 13px; margin-bottom: 16px; }
+    .channels { color: #555; font-size: 14px; margin-bottom: 20px; padding: 12px; background: #fff; border-radius: 8px; border: 1px solid #e5e5e5; line-height: 1.6; }
+    .channels-label { font-weight: 600; color: #333; margin-right: 8px; }
     .date-group { margin: 16px 0; }
     .date-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
     details { background: #fff; border: 1px solid #e5e5e5; border-radius: 8px; padding: 12px; margin-bottom: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
@@ -127,6 +130,10 @@ function renderDynamicHtml(mode: RenderMode = 'default') {
 <body>
   <h1>${titleText}</h1>
   <div class="meta">생성: <span id="generatedAt"></span> / 총 <span id="total"></span>건</div>
+  <div class="channels">
+    <span class="channels-label">📺 구독 채널:</span>
+    <span id="channels">로딩 중...</span>
+  </div>
   <div class="search">
     <input id="search" type="search" placeholder="제목/채널/요약 검색..." />
   </div>
@@ -137,6 +144,7 @@ function renderDynamicHtml(mode: RenderMode = 'default') {
     const searchInput = document.getElementById('search');
     const generatedAtEl = document.getElementById('generatedAt');
     const totalEl = document.getElementById('total');
+    const channelsEl = document.getElementById('channels');
     let payload = null;
 
     // JSON 파일 경로 (환경에 따라 자동 감지)
@@ -152,6 +160,11 @@ function renderDynamicHtml(mode: RenderMode = 'default') {
         payload = await response.json();
         generatedAtEl.textContent = new Date(payload.generatedAt).toLocaleString('ko-KR');
         totalEl.textContent = payload.items.length;
+        
+        // 채널 목록 추출 및 표시
+        const channels = [...new Set(payload.items.map(item => item.channelName))].sort();
+        channelsEl.textContent = channels.join(' • ');
+        
         render(payload.items);
       } catch (error) {
         root.innerHTML = '<p style="color: red;">❌ 데이터 로드 실패: ' + error.message + '</p>';
