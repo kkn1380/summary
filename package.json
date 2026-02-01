@@ -11,6 +11,7 @@
         "monitor": "tsx src/monitor.ts",
         "monitor:watch": "tsx src/monitor.ts --watch",
         "serve": "tsx src/server.ts",
+        "serve:site": "bash scripts/serve-site.sh",
         "setup": "tsx src/setup.ts",
         "fetchScript": "tsx src/runOnce.ts --fetchScript",
         "fetchAndSummarize": "tsx src/runOnce.ts --summarize",
