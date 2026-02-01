@@ -92,7 +92,7 @@ type RenderMode = 'default' | 'mobile';
 
 function renderDynamicHtml(mode: RenderMode = 'default') {
     const isMobile = mode === 'mobile';
-    const titleText = isMobile ? 'YouTube 요약 (모바일)' : 'YouTube 요약';
+    const titleText = isMobile ? '투자 인사이트 | Investment Insights (모바일)' : '투자 인사이트 | Investment Insights';
     const extraMobileStyles = isMobile
         ? `
     h1 { font-size: 48px; }
