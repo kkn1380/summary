@@ -69,7 +69,7 @@ function ensureRetryAfterCapture(): void {
     return;
   }
 
-  globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+  globalThis.fetch = async (input: any, init?: RequestInit) => {
     const response = await originalFetch(input, init);
     try {
       const url = typeof input === 'string'

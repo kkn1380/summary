@@ -40,7 +40,7 @@ export async function loadExistingSummaries(
     const filePath = path.join(outputDir, fileName);
     try {
         const raw = await fs.readFile(filePath, 'utf-8');
-        const parsed = JSON.parse(raw);
+        const parsed = JSON.parse(raw) as any;
         if (parsed && Array.isArray(parsed.items)) {
             return parsed.items as SummaryRecord[];
         }
@@ -49,7 +49,7 @@ export async function loadExistingSummaries(
         const remoteUrl =
             process.env.SUMMARY_REMOTE_URL
             || (process.env.SUMMARY_REMOTE_BASE_URL
-                ? `${process.env.SUMMARY_REMOTE_BASE_URL.replace(/\\/$/, '')}/${fileName}`
+                ? `${process.env.SUMMARY_REMOTE_BASE_URL.replace(/\/+$/, '')}/${fileName}`
                 : undefined);
         if (!remoteUrl) {
             return [];
@@ -59,7 +59,7 @@ export async function loadExistingSummaries(
             if (!response.ok) {
                 return [];
             }
-            const parsed = await response.json();
+            const parsed = await response.json() as any;
             if (parsed && Array.isArray(parsed.items)) {
                 return parsed.items as SummaryRecord[];
             }
@@ -90,12 +90,7 @@ export function mergeSummaries(newRecords: SummaryRecord[], existingRecords: Sum
 
 type RenderMode = 'default' | 'mobile';
 
-function renderHtml(records: SummaryRecord[], mode: RenderMode = 'default') {
-    const data = {
-        generatedAt: new Date().toISOString(),
-        items: records,
-    };
-    const dataScript = JSON.stringify(data);
+function renderDynamicHtml(mode: RenderMode = 'default') {
     const isMobile = mode === 'mobile';
     const titleText = isMobile ? 'YouTube 요약 (모바일)' : 'YouTube 요약';
     const extraMobileStyles = isMobile
@@ -138,14 +133,31 @@ function renderHtml(records: SummaryRecord[], mode: RenderMode = 'default') {
   <div id="root"></div>
 
   <script>
-    const payload = ${dataScript};
     const root = document.getElementById('root');
     const searchInput = document.getElementById('search');
     const generatedAtEl = document.getElementById('generatedAt');
     const totalEl = document.getElementById('total');
+    let payload = null;
 
-    generatedAtEl.textContent = new Date(payload.generatedAt).toLocaleString('ko-KR');
-    totalEl.textContent = payload.items.length;
+    // JSON 파일 경로 (환경에 따라 자동 감지)
+    const dataUrl = './latest.json';
+
+    // 데이터 로드
+    async function loadData() {
+      try {
+        const response = await fetch(dataUrl);
+        if (!response.ok) {
+          throw new Error('데이터를 불러올 수 없습니다.');
+        }
+        payload = await response.json();
+        generatedAtEl.textContent = new Date(payload.generatedAt).toLocaleString('ko-KR');
+        totalEl.textContent = payload.items.length;
+        render(payload.items);
+      } catch (error) {
+        root.innerHTML = '<p style="color: red;">❌ 데이터 로드 실패: ' + error.message + '</p>';
+        console.error('Data load error:', error);
+      }
+    }
 
     function groupByDate(items) {
       const sorted = [...items].sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
@@ -237,6 +249,7 @@ function renderHtml(records: SummaryRecord[], mode: RenderMode = 'default') {
     }
 
     searchInput.addEventListener('input', () => {
+      if (!payload) return;
       const q = searchInput.value.trim().toLowerCase();
       if (!q) {
         render(payload.items);
@@ -290,7 +303,8 @@ function renderHtml(records: SummaryRecord[], mode: RenderMode = 'default') {
       window.speechSynthesis.speak(utterance);
     }
 
-    render(payload.items);
+    // 페이지 로드 시 데이터 가져오기
+    loadData();
   </script>
 </body>
 </html>`;
@@ -304,7 +318,7 @@ export async function writeSummariesHtmlToLocal(
     const fileName = options?.fileName || 'index.html';
     await fs.mkdir(outputDir, { recursive: true });
     const filePath = path.join(outputDir, fileName);
-    const html = renderHtml(records);
+    const html = renderDynamicHtml();
     await fs.writeFile(filePath, html, 'utf-8');
     return filePath;
 }
@@ -317,7 +331,7 @@ export async function writeSummariesMobileHtmlToLocal(
     const fileName = options?.fileName || 'index.mobile.html';
     await fs.mkdir(outputDir, { recursive: true });
     const filePath = path.join(outputDir, fileName);
-    const html = renderHtml(records, 'mobile');
+    const html = renderDynamicHtml('mobile');
     await fs.writeFile(filePath, html, 'utf-8');
     return filePath;
 }
@@ -347,8 +361,8 @@ export async function writeSummariesToGcs(
         count: records.length,
         items: records,
     };
-    const html = renderHtml(records);
-    const mobileHtml = renderHtml(records, 'mobile');
+    const html = renderDynamicHtml();
+    const mobileHtml = renderDynamicHtml('mobile');
 
     const jsonName = options.jsonFileName || 'latest.json';
     const htmlName = options.htmlFileName || 'index.html';
@@ -360,15 +374,21 @@ export async function writeSummariesToGcs(
 
     await jsonFile.save(JSON.stringify(jsonPayload, null, 2), {
         contentType: 'application/json',
-        cacheControl: 'no-store',
+        metadata: {
+            cacheControl: 'no-store',
+        },
     });
     await htmlFile.save(html, {
         contentType: 'text/html; charset=utf-8',
-        cacheControl: 'no-store',
+        metadata: {
+            cacheControl: 'no-store',
+        },
     });
     await mobileHtmlFile.save(mobileHtml, {
         contentType: 'text/html; charset=utf-8',
-        cacheControl: 'no-store',
+        metadata: {
+            cacheControl: 'no-store',
+        },
     });
 
     return {
