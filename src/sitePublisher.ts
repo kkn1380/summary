@@ -90,7 +90,12 @@ export function mergeSummaries(newRecords: SummaryRecord[], existingRecords: Sum
 
 type RenderMode = 'default' | 'mobile';
 
-function renderDynamicHtml(mode: RenderMode = 'default') {
+function renderHtml(records: SummaryRecord[], mode: RenderMode = 'default') {
+    const data = {
+        generatedAt: new Date().toISOString(),
+        items: records,
+    };
+    const dataScript = JSON.stringify(data);
     const isMobile = mode === 'mobile';
     const titleText = isMobile ? '투자 인사이트 | Investment Insights (모바일)' : '투자 인사이트 | Investment Insights';
     const extraMobileStyles = isMobile
@@ -142,37 +147,19 @@ function renderDynamicHtml(mode: RenderMode = 'default') {
   <div id="root"></div>
 
   <script>
+    const payload = ${dataScript};
     const root = document.getElementById('root');
     const searchInput = document.getElementById('search');
     const generatedAtEl = document.getElementById('generatedAt');
     const totalEl = document.getElementById('total');
     const channelsEl = document.getElementById('channels');
-    let payload = null;
 
-    // JSON 파일 경로 (환경에 따라 자동 감지)
-    const dataUrl = './latest.json';
-
-    // 데이터 로드
-    async function loadData() {
-      try {
-        const response = await fetch(dataUrl);
-        if (!response.ok) {
-          throw new Error('데이터를 불러올 수 없습니다.');
-        }
-        payload = await response.json();
-        generatedAtEl.textContent = new Date(payload.generatedAt).toLocaleString('ko-KR');
-        totalEl.textContent = payload.items.length;
-        
-        // 채널 목록 추출 및 표시
-        const channels = [...new Set(payload.items.map(item => item.channelName))].sort();
-        channelsEl.textContent = channels.join(' • ');
-        
-        render(payload.items);
-      } catch (error) {
-        root.innerHTML = '<p style="color: red;">❌ 데이터 로드 실패: ' + error.message + '</p>';
-        console.error('Data load error:', error);
-      }
-    }
+    generatedAtEl.textContent = new Date(payload.generatedAt).toLocaleString('ko-KR');
+    totalEl.textContent = payload.items.length;
+    
+    // 채널 목록 추출 및 표시
+    const channels = [...new Set(payload.items.map(item => item.channelName))].sort();
+    channelsEl.textContent = channels.join(' • ');
 
     function groupByDate(items) {
       const sorted = [...items].sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
@@ -295,7 +282,6 @@ function renderDynamicHtml(mode: RenderMode = 'default') {
     }
 
     searchInput.addEventListener('input', () => {
-      if (!payload) return;
       const q = searchInput.value.trim().toLowerCase();
       if (!q) {
         render(payload.items);
@@ -349,8 +335,7 @@ function renderDynamicHtml(mode: RenderMode = 'default') {
       window.speechSynthesis.speak(utterance);
     }
 
-    // 페이지 로드 시 데이터 가져오기
-    loadData();
+    render(payload.items);
   </script>
 </body>
 </html>`;
@@ -364,7 +349,7 @@ export async function writeSummariesHtmlToLocal(
     const fileName = options?.fileName || 'index.html';
     await fs.mkdir(outputDir, { recursive: true });
     const filePath = path.join(outputDir, fileName);
-    const html = renderDynamicHtml();
+    const html = renderHtml(records);
     await fs.writeFile(filePath, html, 'utf-8');
     return filePath;
 }
@@ -377,7 +362,7 @@ export async function writeSummariesMobileHtmlToLocal(
     const fileName = options?.fileName || 'index.mobile.html';
     await fs.mkdir(outputDir, { recursive: true });
     const filePath = path.join(outputDir, fileName);
-    const html = renderDynamicHtml('mobile');
+    const html = renderHtml(records, 'mobile');
     await fs.writeFile(filePath, html, 'utf-8');
     return filePath;
 }
@@ -407,8 +392,8 @@ export async function writeSummariesToGcs(
         count: records.length,
         items: records,
     };
-    const html = renderDynamicHtml();
-    const mobileHtml = renderDynamicHtml('mobile');
+    const html = renderHtml(records);
+    const mobileHtml = renderHtml(records, 'mobile');
 
     const jsonName = options.jsonFileName || 'latest.json';
     const htmlName = options.htmlFileName || 'index.html';

@@ -35,38 +35,18 @@ async function writeSiteFromRecords(records: SummaryRecord[], outputDir?: string
     if (mergedRecords.length === 0) {
         return;
     }
-    
-    // JSON 파일만 업데이트
     const jsonPath = await writeSummariesToLocal(mergedRecords, {
         outputDir: resolvedOutputDir,
     });
+    const htmlPath = await writeSummariesHtmlToLocal(mergedRecords, {
+        outputDir: resolvedOutputDir,
+    });
+    const mobileHtmlPath = await writeSummariesMobileHtmlToLocal(mergedRecords, {
+        outputDir: resolvedOutputDir,
+    });
     console.log(`🗂  정적 데이터 저장 완료: ${jsonPath}`);
-    
-    // HTML 파일은 존재하지 않을 때만 생성
-    const htmlOutputDir = resolvedOutputDir || path.join(process.cwd(), 'data', 'site');
-    const htmlPath = path.join(htmlOutputDir, 'index.html');
-    const mobileHtmlPath = path.join(htmlOutputDir, 'index.mobile.html');
-    
-    const htmlExists = await fileExists(htmlPath);
-    const mobileHtmlExists = await fileExists(mobileHtmlPath);
-    
-    if (!htmlExists) {
-        await writeSummariesHtmlToLocal(mergedRecords, {
-            outputDir: resolvedOutputDir,
-        });
-        console.log(`📄 정적 페이지 생성 완료: ${htmlPath}`);
-    } else {
-        console.log(`📄 정적 페이지 유지: ${htmlPath} (이미 존재)`);
-    }
-    
-    if (!mobileHtmlExists) {
-        await writeSummariesMobileHtmlToLocal(mergedRecords, {
-            outputDir: resolvedOutputDir,
-        });
-        console.log(`📄 모바일 페이지 생성 완료: ${mobileHtmlPath}`);
-    } else {
-        console.log(`📄 모바일 페이지 유지: ${mobileHtmlPath} (이미 존재)`);
-    }
+    console.log(`📄 정적 페이지 저장 완료: ${htmlPath}`);
+    console.log(`📄 모바일 페이지 저장 완료: ${mobileHtmlPath}`);
 
     const gcsBucket = process.env.SUMMARY_BUCKET;
     if (gcsBucket) {
