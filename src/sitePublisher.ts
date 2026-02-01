@@ -99,6 +99,7 @@ function renderDynamicHtml(mode: RenderMode = 'default') {
     summary, pre { font-size: 32px; }
     .subtitle, .meta { font-size: 20px; }
     .channels { font-size: 28px; padding: 16px; }
+    .channel-header { font-size: 32px; padding: 12px 16px; }
     input[type="search"] { width: 100%; font-size: 20px; }
   `
         : '';
@@ -116,6 +117,7 @@ function renderDynamicHtml(mode: RenderMode = 'default') {
     .channels-label { font-weight: 600; color: #333; margin-right: 8px; }
     .date-group { margin: 16px 0; }
     .date-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .channel-header { font-size: 16px; font-weight: 600; color: #2563eb; margin: 16px 0 8px 0; padding: 8px 12px; background: #eff6ff; border-left: 4px solid #2563eb; border-radius: 4px; }
     details { background: #fff; border: 1px solid #e5e5e5; border-radius: 8px; padding: 12px; margin-bottom: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
     summary { cursor: pointer; font-weight: 600; }
     .tts-btn { margin: 8px 0 4px 0; padding: 6px 10px; border-radius: 8px; border: 1px solid #ddd; background: #f5f5f7; cursor: pointer; }
@@ -192,20 +194,36 @@ function renderDynamicHtml(mode: RenderMode = 'default') {
       return groups;
     }
 
+    function groupByChannel(items) {
+      const channelMap = new Map();
+      for (const item of items) {
+        if (!channelMap.has(item.channelName)) {
+          channelMap.set(item.channelName, []);
+        }
+        channelMap.get(item.channelName).push(item);
+      }
+      // 채널명 알파벳 순으로 정렬
+      return Array.from(channelMap.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([channelName, items]) => ({ channelName, items }));
+    }
+
     function render(list) {
       root.innerHTML = '';
-      const groups = groupByDate(list);
-      if (groups.length === 0) {
+      const dateGroups = groupByDate(list);
+      if (dateGroups.length === 0) {
         root.textContent = '표시할 항목이 없습니다.';
         return;
       }
-      for (const group of groups) {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'date-group';
-        const header = document.createElement('div');
-        header.className = 'date-header';
+      
+      for (const dateGroup of dateGroups) {
+        const dateWrapper = document.createElement('div');
+        dateWrapper.className = 'date-group';
+        
+        const dateHeader = document.createElement('div');
+        dateHeader.className = 'date-header';
         const h3 = document.createElement('h3');
-        h3.textContent = group.date;
+        h3.textContent = dateGroup.date;
         const dateTtsBtn = document.createElement('button');
         dateTtsBtn.type = 'button';
         dateTtsBtn.className = 'tts-btn';
@@ -213,46 +231,61 @@ function renderDynamicHtml(mode: RenderMode = 'default') {
         dateTtsBtn.addEventListener('click', (event) => {
           event.preventDefault();
           event.stopPropagation();
-          const text = group.items
+          const text = dateGroup.items
             .map(entry => \`제목: \${entry.title}. 요약: \${entry.summary}\`)
             .join('\\n\\n');
           toggleTts(text, dateTtsBtn);
         });
-        header.appendChild(h3);
-        header.appendChild(dateTtsBtn);
-        wrapper.appendChild(header);
+        dateHeader.appendChild(h3);
+        dateHeader.appendChild(dateTtsBtn);
+        dateWrapper.appendChild(dateHeader);
 
-        group.items.forEach(item => {
-          const details = document.createElement('details');
-          const summary = document.createElement('summary');
-          summary.innerHTML = \`\${item.title} <span class="subtitle">(\${item.channelName})</span>\`;
-          const ttsBtn = document.createElement('button');
-          ttsBtn.type = 'button';
-          ttsBtn.className = 'tts-btn';
-          ttsBtn.textContent = '🔊 듣기';
-          ttsBtn.addEventListener('click', (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            toggleTts(item.summary, ttsBtn);
+        // 날짜 내에서 채널별로 그룹핑
+        const channelGroups = groupByChannel(dateGroup.items);
+        
+        for (const channelGroup of channelGroups) {
+          // 채널 헤더
+          const channelHeader = document.createElement('div');
+          channelHeader.className = 'channel-header';
+          channelHeader.textContent = channelGroup.channelName;
+          dateWrapper.appendChild(channelHeader);
+          
+          // 채널의 컨텐츠들
+          channelGroup.items.forEach(item => {
+            const details = document.createElement('details');
+            const summary = document.createElement('summary');
+            summary.textContent = item.title; // 채널명 제거
+            
+            const ttsBtn = document.createElement('button');
+            ttsBtn.type = 'button';
+            ttsBtn.className = 'tts-btn';
+            ttsBtn.textContent = '🔊 듣기';
+            ttsBtn.addEventListener('click', (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              toggleTts(item.summary, ttsBtn);
+            });
+            
+            const meta = document.createElement('div');
+            meta.className = 'meta';
+            meta.innerHTML = \`
+              <span class="badge">유튜브 게시일 \${new Date(item.publishedAt).toLocaleString('ko-KR')}</span>
+              <span class="badge">처리 \${new Date(item.processedAt).toLocaleString('ko-KR')}</span>
+              <span class="badge"><a href="\${item.url}" target="_blank" rel="noopener">YouTube</a></span>
+            \`;
+            
+            const pre = document.createElement('pre');
+            pre.textContent = item.summary;
+
+            details.appendChild(summary);
+            details.appendChild(ttsBtn);
+            details.appendChild(meta);
+            details.appendChild(pre);
+            dateWrapper.appendChild(details);
           });
-          const meta = document.createElement('div');
-          meta.className = 'meta';
-          meta.innerHTML = \`
-            <span class="badge">유튜브 게시일 \${new Date(item.publishedAt).toLocaleString('ko-KR')}</span>
-            <span class="badge">처리 \${new Date(item.processedAt).toLocaleString('ko-KR')}</span>
-            <span class="badge"><a href="\${item.url}" target="_blank" rel="noopener">YouTube</a></span>
-          \`;
-          const pre = document.createElement('pre');
-          pre.textContent = item.summary;
+        }
 
-          details.appendChild(summary);
-          details.appendChild(ttsBtn);
-          details.appendChild(meta);
-          details.appendChild(pre);
-          wrapper.appendChild(details);
-        });
-
-        root.appendChild(wrapper);
+        root.appendChild(dateWrapper);
       }
     }
 
