@@ -15,8 +15,13 @@ service-account-key.json
 !package-lock.json
 !tsconfig.json
 
-# Data files
-data/
+# Data files (cache and site output)
+data/cache/*.txt
+data/cache/*.json
+!data/cache/.gitkeep
+data/site/
+data/last-run.txt
+data/processed-videos.json
 
 # IDE
 .vscode/

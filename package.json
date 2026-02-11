@@ -32,14 +32,14 @@
     "author": "",
     "license": "MIT",
     "dependencies": {
+        "@google-cloud/storage": "^7.12.1",
         "@google/generative-ai": "^0.24.1",
         "dotenv": "^16.4.5",
         "googleapis": "^144.0.0",
         "openai": "^6.15.0",
         "rss-parser": "^3.13.0",
-        "@google-cloud/storage": "^7.12.1",
-        "youtube-transcript": "^1.0.3",
-        "youtube-caption-extractor": "^1.9.0"
+        "youtube-caption-extractor": "^1.9.0",
+        "youtube-transcript": "^1.0.3"
     },
     "devDependencies": {
         "@types/node": "^22.0.0",

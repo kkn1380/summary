@@ -148,7 +148,7 @@ export async function extractSubtitles(
 async function getSubtitlesWithYtDlp(videoId: string, lang: string): Promise<SubtitleSegment[]> {
     const ytdlp = process.env.YTDLP_PATH || 'yt-dlp';
     const cookiesPath = process.env.YTDLP_COOKIES;
-    const cookiesFromBrowser = process.env.YTDLP_COOKIES_FROM_BROWSER || 'chrome';
+    const cookiesFromBrowser = process.env.YTDLP_COOKIES_FROM_BROWSER;
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'yt-sub-'));
     const outputTemplate = path.join(tmpDir, '%(id)s.%(ext)s');
     const args = [
@@ -170,6 +170,7 @@ async function getSubtitlesWithYtDlp(videoId: string, lang: string): Promise<Sub
         args.unshift(cookiesFromBrowser);
         args.unshift('--cookies-from-browser');
     }
+    // 쿠키 없이도 시도
 
     try {
         await execFileAsync(ytdlp, args);
