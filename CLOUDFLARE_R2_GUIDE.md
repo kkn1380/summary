@@ -37,6 +37,42 @@ Cloudflare Pages (프론트엔드)
 
 5. 생성된 Public URL 복사 (예: `https://pub-abc123.r2.dev`)
 
+### 1.2.1 CORS 설정 (필수!)
+
+**중요**: Cloudflare Pages에서 R2 데이터를 읽으려면 CORS 설정이 필수입니다.
+
+1. 버킷 페이지에서 **Settings** 탭
+2. **CORS Policy** 섹션 찾기
+3. **Add CORS policy** 또는 **Edit** 클릭
+4. 다음 JSON 입력:
+
+```json
+[
+  {
+    "AllowedOrigins": [
+      "https://summary-30h.pages.dev",
+      "https://*.pages.dev",
+      "http://localhost:8000"
+    ],
+    "AllowedMethods": ["GET", "HEAD"],
+    "AllowedHeaders": ["*"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+**설명**:
+- `AllowedOrigins`: Pages 도메인과 로컬 테스트 허용
+- `AllowedMethods`: GET, HEAD만 허용 (읽기 전용)
+- `MaxAgeSeconds`: 1시간 동안 CORS preflight 캐시
+
+5. **Save** 클릭
+
+**참고**: 
+- Pages 도메인이 다르면 `AllowedOrigins`에 본인 도메인 추가
+- Custom Domain 사용 시 해당 도메인도 추가
+
 ### 1.3 API Token 생성
 
 1. R2 메인 페이지 → **Manage R2 API Tokens**
@@ -222,21 +258,6 @@ npm run generate:dynamic
 
 ## 🔧 고급 설정
 
-### CORS 설정 (필요 시)
-
-R2 버킷에서 CORS 설정:
-
-```json
-[
-  {
-    "AllowedOrigins": ["https://your-pages-domain.pages.dev"],
-    "AllowedMethods": ["GET"],
-    "AllowedHeaders": ["*"],
-    "MaxAgeSeconds": 3600
-  }
-]
-```
-
 ### Cache 설정
 
 R2 업로드 시 캐시 헤더가 자동 설정됨:
@@ -272,7 +293,31 @@ Error: The AWS Access Key Id you provided does not exist in our records
 ```
 Access to fetch at 'https://pub-xxx.r2.dev/index.json' has been blocked by CORS
 ```
-→ R2 버킷 설정에서 CORS 규칙 추가
+
+**해결 방법**:
+
+1. Cloudflare Dashboard → R2 → 버킷 클릭
+2. **Settings** 탭 → **CORS Policy** 섹션
+3. 다음 설정 추가:
+
+```json
+[
+  {
+    "AllowedOrigins": [
+      "https://summary-30h.pages.dev",
+      "https://*.pages.dev"
+    ],
+    "AllowedMethods": ["GET", "HEAD"],
+    "AllowedHeaders": ["*"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+4. **Save** 후 5분 정도 대기 (전파 시간)
+5. 브라우저 캐시 삭제 후 재시도
+
+**참고**: Pages 도메인이 다르면 본인 도메인으로 변경하세요.
 
 ### 데이터가 안 보임
 

@@ -19,23 +19,30 @@ async function main() {
 옵션:
   --local-only      로컬에만 저장 (R2 업로드 안 함)
   --r2-only         R2에만 업로드 (로컬 저장 안 함)
+  --force           모든 파일 강제 업로드 (변경 확인 안 함)
   --help, -h        도움말 표시
 
+기본 동작:
+  - 변경된 파일만 업로드 (MD5 해시 비교)
+  - 오늘 날짜는 항상 업로드
+  - index.json은 항상 업로드
+
 예시:
-  # 로컬 + R2 모두
+  # 스마트 업로드 (변경된 것만)
   npx tsx scripts/upload-to-r2.ts
+
+  # 모든 파일 강제 업로드
+  npx tsx scripts/upload-to-r2.ts --force
 
   # 로컬에만 저장 (테스트용)
   npx tsx scripts/upload-to-r2.ts --local-only
-
-  # R2에만 업로드
-  npx tsx scripts/upload-to-r2.ts --r2-only
         `);
         return;
     }
 
     const localOnly = args.includes('--local-only');
     const r2Only = args.includes('--r2-only');
+    const forceUpload = args.includes('--force');
     const bucketName = process.env.R2_BUCKET_NAME || 'youtube-summaries';
 
     console.log('🚀 R2 업로드 시작\n');
@@ -61,8 +68,13 @@ async function main() {
     // 3. R2 업로드
     if (!localOnly) {
         console.log('☁️  Cloudflare R2에 업로드 중...');
+        if (forceUpload) {
+            console.log('   ⚠️  강제 업로드 모드 (모든 파일)');
+        } else {
+            console.log('   🔍 스마트 업로드 (변경된 파일만)');
+        }
         try {
-            await uploadDailySummariesToR2(records, bucketName);
+            await uploadDailySummariesToR2(records, bucketName, { forceUpload });
             await uploadIndexToR2(records, bucketName);
             console.log();
             console.log('✅ R2 업로드 완료!');

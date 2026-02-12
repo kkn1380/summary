@@ -234,6 +234,32 @@ function generateHtmlTemplate(r2PublicUrl: string): string {
             white-space: pre-wrap;
             font-size: 0.95em;
         }
+        .tts-btn {
+            margin: 8px 0;
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            background: #f8f9fa;
+            cursor: pointer;
+            font-size: 0.9em;
+            color: #555;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .tts-btn:hover {
+            background: #e9ecef;
+            border-color: #adb5bd;
+        }
+        .tts-btn.playing {
+            background: #e74c3c;
+            color: white;
+            border-color: #c0392b;
+        }
+        .tts-btn.playing:hover {
+            background: #c0392b;
+        }
         .error {
             background: #e74c3c;
             color: white;
@@ -308,6 +334,10 @@ function generateHtmlTemplate(r2PublicUrl: string): string {
             }
             .video-summary {
                 font-size: 0.9em;
+            }
+            .tts-btn {
+                font-size: 0.85em;
+                padding: 6px 12px;
             }
             .toggle-icon {
                 font-size: 1em;
@@ -421,7 +451,12 @@ function generateHtmlTemplate(r2PublicUrl: string): string {
                                 <div class="date-title">\${formatDate(date)}</div>
                                 <div class="date-count" id="count-\${date}">\${count}개 영상</div>
                             </div>
-                            <div class="toggle-icon \${isToday ? '' : 'collapsed'}">▼</div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <button class="tts-btn" onclick="event.stopPropagation(); playDateTTS('\${date}')" id="tts-date-\${date}">
+                                    🔊 날짜 듣기
+                                </button>
+                                <div class="toggle-icon \${isToday ? '' : 'collapsed'}">▼</div>
+                            </div>
                         </div>
                         <div class="date-content \${isToday ? '' : 'hidden'}" id="content-\${date}">
                             \${isToday ? renderDayContent(indexData.today.items) : ''}
@@ -503,7 +538,12 @@ function generateHtmlTemplate(r2PublicUrl: string): string {
                                     <div class="channel-name">\${channelName}</div>
                                     <div class="channel-count">\${videos.length}개 영상</div>
                                 </div>
-                                <div class="toggle-icon collapsed">▼</div>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <button class="tts-btn" onclick="event.stopPropagation(); playChannelTTS('\${channelId}', \${JSON.stringify(videos).replace(/"/g, '&quot;')})" id="tts-\${channelId}">
+                                        🔊 채널 듣기
+                                    </button>
+                                    <div class="toggle-icon collapsed">▼</div>
+                                </div>
                             </div>
                             <div class="channel-content hidden" id="\${channelId}">
                                 \${videos.map(video => {
@@ -531,6 +571,9 @@ function generateHtmlTemplate(r2PublicUrl: string): string {
                                                 <div class="video-meta">
                                                     게시일: \${new Date(video.publishedAt).toLocaleString('ko-KR')}
                                                 </div>
+                                                <button class="tts-btn" onclick="playVideoTTS('\${videoId}', \${JSON.stringify(video.summary).replace(/"/g, '&quot;')})" id="tts-\${videoId}">
+                                                    🔊 요약 듣기
+                                                </button>
                                                 <div class="video-summary">\${video.summary}</div>
                                             </div>
                                         </div>
@@ -593,6 +636,115 @@ function generateHtmlTemplate(r2PublicUrl: string): string {
 
         // 페이지 로드 시 실행
         init();
+
+        // ========== TTS 기능 ==========
+        const supportsTTS = 'speechSynthesis' in window;
+        let currentUtterance = null;
+        let currentButton = null;
+
+        function resetTTSButton(button) {
+            if (!button) return;
+            const icon = button.textContent.includes('날짜') ? '🔊 날짜 듣기' :
+                         button.textContent.includes('채널') ? '🔊 채널 듣기' :
+                         '🔊 요약 듣기';
+            button.textContent = icon;
+            button.classList.remove('playing');
+            button.dataset.state = 'idle';
+        }
+
+        function toggleTTS(text, button) {
+            if (!supportsTTS) {
+                alert('이 브라우저는 TTS를 지원하지 않습니다.');
+                return;
+            }
+
+            // 이미 재생 중이면 중지
+            if (button.dataset.state === 'playing') {
+                window.speechSynthesis.cancel();
+                resetTTSButton(button);
+                currentUtterance = null;
+                currentButton = null;
+                return;
+            }
+
+            // 다른 버튼이 재생 중이면 중지
+            if (currentButton && currentButton !== button) {
+                window.speechSynthesis.cancel();
+                resetTTSButton(currentButton);
+            }
+
+            // 새로운 TTS 시작
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'ko-KR';
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
+            
+            utterance.onend = () => {
+                resetTTSButton(button);
+                currentUtterance = null;
+                currentButton = null;
+            };
+            
+            utterance.onerror = () => {
+                resetTTSButton(button);
+                currentUtterance = null;
+                currentButton = null;
+            };
+
+            currentUtterance = utterance;
+            currentButton = button;
+            button.dataset.state = 'playing';
+            button.textContent = '⏹ 중지';
+            button.classList.add('playing');
+            
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // 날짜별 TTS
+        async function playDateTTS(date) {
+            const button = document.getElementById(\`tts-date-\${date}\`);
+            
+            // 데이터 로드 확인
+            let items;
+            if (date === indexData.dates[0]) {
+                items = indexData.today.items;
+            } else if (loadedDates.has(date)) {
+                // 이미 로드된 데이터에서 가져오기
+                const contentElement = document.getElementById(\`content-\${date}\`);
+                if (!contentElement || contentElement.classList.contains('hidden')) {
+                    alert('먼저 날짜를 펼쳐서 데이터를 로드해주세요.');
+                    return;
+                }
+                // DOM에서 데이터 추출 (임시 방법)
+                alert('날짜 TTS는 오늘 데이터만 지원합니다.');
+                return;
+            } else {
+                alert('먼저 날짜를 펼쳐서 데이터를 로드해주세요.');
+                return;
+            }
+            
+            const text = items
+                .map(item => \`제목: \${item.title}. 요약: \${item.summary}\`)
+                .join('\\n\\n');
+            
+            toggleTTS(text, button);
+        }
+
+        // 채널별 TTS
+        function playChannelTTS(channelId, videos) {
+            const button = document.getElementById(\`tts-\${channelId}\`);
+            const text = videos
+                .map(video => \`제목: \${video.title}. 요약: \${video.summary}\`)
+                .join('\\n\\n');
+            
+            toggleTTS(text, button);
+        }
+
+        // 영상별 TTS
+        function playVideoTTS(videoId, summary) {
+            const button = document.getElementById(\`tts-\${videoId}\`);
+            toggleTTS(summary, button);
+        }
     </script>
 </body>
 </html>`;
