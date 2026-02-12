@@ -260,6 +260,27 @@ function generateHtmlTemplate(r2PublicUrl: string): string {
         .tts-btn.playing:hover {
             background: #c0392b;
         }
+        .load-more-btn {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            margin: 20px 0;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .load-more-btn:hover {
+            background: #2980b9;
+        }
+        .load-more-btn:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+        }
         .error {
             background: #e74c3c;
             color: white;
@@ -339,6 +360,10 @@ function generateHtmlTemplate(r2PublicUrl: string): string {
                 font-size: 0.85em;
                 padding: 6px 12px;
             }
+            .load-more-btn {
+                padding: 12px;
+                font-size: 0.95em;
+            }
             .toggle-icon {
                 font-size: 1em;
             }
@@ -397,8 +422,11 @@ function generateHtmlTemplate(r2PublicUrl: string): string {
     <script>
         const R2_PUBLIC_URL = '${baseUrl}';
         const IS_LOCAL = ${isLocal};
+        const DATES_PER_PAGE = 3; // 한 번에 보여줄 날짜 개수
+        
         let indexData = null;
         let loadedDates = new Set();
+        let displayedDateCount = 0; // 현재 표시된 날짜 개수
 
         // 초기 로드
         async function init() {
@@ -439,31 +467,91 @@ function generateHtmlTemplate(r2PublicUrl: string): string {
         // 날짜 섹션 렌더링
         function renderDates() {
             const content = document.getElementById('content');
-            content.innerHTML = indexData.dates.map((date, index) => {
-                const isToday = index === 0;
+            content.innerHTML = '';
+            
+            // 처음 3개 날짜만 렌더링
+            displayedDateCount = Math.min(DATES_PER_PAGE, indexData.dates.length);
+            renderDateRange(0, displayedDateCount);
+            
+            // 더 보기 버튼 추가
+            if (displayedDateCount < indexData.dates.length) {
+                addLoadMoreButton();
+            }
+        }
+
+        // 날짜 범위 렌더링
+        function renderDateRange(startIndex, endIndex) {
+            const content = document.getElementById('content');
+            const fragment = document.createDocumentFragment();
+            
+            for (let i = startIndex; i < endIndex && i < indexData.dates.length; i++) {
+                const date = indexData.dates[i];
+                const isToday = i === 0;
                 const count = isToday ? indexData.today.count : '?';
                 
-                return \`
-                    <div class="date-section">
-                        <div class="date-header \${isToday ? '' : 'collapsed'}" 
-                             onclick="toggleDate('\${date}', this)">
-                            <div>
-                                <div class="date-title">\${formatDate(date)}</div>
-                                <div class="date-count" id="count-\${date}">\${count}개 영상</div>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <button class="tts-btn" onclick="event.stopPropagation(); playDateTTS('\${date}')" id="tts-date-\${date}">
-                                    🔊 날짜 듣기
-                                </button>
-                                <div class="toggle-icon \${isToday ? '' : 'collapsed'}">▼</div>
-                            </div>
+                const dateSection = document.createElement('div');
+                dateSection.className = 'date-section';
+                dateSection.innerHTML = \`
+                    <div class="date-header \${isToday ? '' : 'collapsed'}" 
+                         onclick="toggleDate('\${date}', this)">
+                        <div>
+                            <div class="date-title">\${formatDate(date)}</div>
+                            <div class="date-count" id="count-\${date}">\${count}개 영상</div>
                         </div>
-                        <div class="date-content \${isToday ? '' : 'hidden'}" id="content-\${date}">
-                            \${isToday ? renderDayContent(indexData.today.items) : ''}
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <button class="tts-btn" onclick="event.stopPropagation(); playDateTTS('\${date}')" id="tts-date-\${date}">
+                                🔊 날짜 듣기
+                            </button>
+                            <div class="toggle-icon \${isToday ? '' : 'collapsed'}">▼</div>
                         </div>
                     </div>
+                    <div class="date-content \${isToday ? '' : 'hidden'}" id="content-\${date}">
+                        \${isToday ? renderDayContent(indexData.today.items) : ''}
+                    </div>
                 \`;
-            }).join('');
+                
+                fragment.appendChild(dateSection);
+            }
+            
+            content.appendChild(fragment);
+        }
+
+        // 더 보기 버튼 추가
+        function addLoadMoreButton() {
+            const content = document.getElementById('content');
+            const existingBtn = document.getElementById('load-more-btn');
+            if (existingBtn) {
+                existingBtn.remove();
+            }
+            
+            const loadMoreBtn = document.createElement('button');
+            loadMoreBtn.id = 'load-more-btn';
+            loadMoreBtn.className = 'load-more-btn';
+            loadMoreBtn.textContent = \`더 보기 (\${indexData.dates.length - displayedDateCount}개 날짜 남음)\`;
+            loadMoreBtn.onclick = loadMoreDates;
+            
+            content.appendChild(loadMoreBtn);
+        }
+
+        // 더 보기 클릭
+        function loadMoreDates() {
+            const startIndex = displayedDateCount;
+            const endIndex = Math.min(startIndex + DATES_PER_PAGE, indexData.dates.length);
+            
+            // 더 보기 버튼 제거
+            const loadMoreBtn = document.getElementById('load-more-btn');
+            if (loadMoreBtn) {
+                loadMoreBtn.remove();
+            }
+            
+            // 새 날짜들 렌더링
+            renderDateRange(startIndex, endIndex);
+            displayedDateCount = endIndex;
+            
+            // 아직 더 있으면 버튼 다시 추가
+            if (displayedDateCount < indexData.dates.length) {
+                addLoadMoreButton();
+            }
         }
 
         // 날짜 토글
